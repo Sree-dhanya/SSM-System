@@ -3840,7 +3840,8 @@ const StudentPage = () => {
                 <main className="w-full lg:w-4/6 flex-1 lg:px-4">
                   <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
                     {/* Horizontal filter bar at the top */}
-                    <div className="flex flex-col sm:flex-row flex-wrap items-end gap-6 mb-4 w-full">
+                    <div className="flex flex-col lg:flex-row lg:items-end gap-4 mb-4 w-full">
+                      <div className="flex flex-col sm:flex-row flex-wrap items-end gap-6 flex-1">
                       <div className="flex flex-row items-center min-w-[140px] gap-2">
                         <span className="text-sm font-semibold text-gray-700">
                           Start Date
@@ -3854,7 +3855,7 @@ const StudentPage = () => {
                               setFromDate(e.target.value);
                               setVisibleCount(5);
                             }}
-                            className="appearance-none w-[36px] h-10 bg-white border border-gray-300 rounded-full focus:ring-2 focus:ring-[#E38B52] focus:border-[#E38B52] text-base text-gray-700 pl-9 pr-2 py-2 shadow-sm transition-all duration-200 cursor-pointer hover:bg-orange-50"
+                            className="w-[160px] h-10 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#E38B52] focus:border-[#E38B52] text-sm text-gray-700 pl-10 pr-3 py-2 shadow-sm transition-all duration-200 cursor-pointer hover:bg-orange-50"
                             style={{ paddingLeft: "2.2rem" }}
                             aria-label="Start date"
                           />
@@ -3900,7 +3901,7 @@ const StudentPage = () => {
                         <span className="text-sm font-semibold text-gray-700">
                           End Date
                         </span>
-                        <div className="relative flex items-center">
+                        <div className="relative flex items-center h-10">
                           <input
                             ref={endDateRef}
                             type="date"
@@ -3909,7 +3910,7 @@ const StudentPage = () => {
                               setToDate(e.target.value);
                               setVisibleCount(5);
                             }}
-                            className="appearance-none w-[36px] h-10 bg-white border border-gray-300 rounded-full focus:ring-2 focus:ring-[#E38B52] focus:border-[#E38B52] text-base text-gray-700 pl-9 pr-2 py-2 shadow-sm transition-all duration-200 cursor-pointer hover:bg-orange-50"
+                            className="w-[160px] h-10 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#E38B52] focus:border-[#E38B52] text-sm text-gray-700 pl-10 pr-3 py-2 shadow-sm transition-all duration-200 cursor-pointer hover:bg-orange-50"
                             style={{ paddingLeft: "2.2rem" }}
                             aria-label="End date"
                           />
@@ -3993,20 +3994,24 @@ const StudentPage = () => {
                           </svg>
                         </div>
                       </div>
-                      <div className="flex flex-row items-end gap-2">
-                        {(fromDate || toDate || selectedTherapyType) && (
-                          <button
-                            onClick={() => {
-                              setFromDate("");
-                              setToDate("");
-                              setSelectedTherapyType("");
-                              setVisibleCount(5);
-                            }}
-                            className="px-5 h-10 py-2 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-lg text-base font-semibold hover:from-gray-700 hover:to-gray-800 transition-all duration-200 shadow-md hover:shadow-lg flex items-center"
-                          >
-                            Clear
-                          </button>
-                        )}
+                      </div>
+                      <div className="flex flex-row items-end gap-2 lg:justify-end lg:min-w-[320px] lg:flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            setFromDate("");
+                            setToDate("");
+                            setSelectedTherapyType("");
+                            setVisibleCount(5);
+                          }}
+                          disabled={!(fromDate || toDate || selectedTherapyType)}
+                          className={`px-5 h-10 py-2 rounded-lg text-base font-semibold transition-all duration-200 shadow-md flex items-center ${
+                            fromDate || toDate || selectedTherapyType
+                              ? "bg-gradient-to-r from-gray-600 to-gray-700 text-white hover:from-gray-700 hover:to-gray-800 hover:shadow-lg"
+                              : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          }`}
+                        >
+                          Clear
+                        </button>
                         {/* Stats Display with Count-up Animation (moved here) */}
                         {(() => {
                           // Calculate filtered reports based on current filters
@@ -4704,40 +4709,6 @@ const StudentPage = () => {
                                       />
                                     </svg>
                                     Download
-                                  </button>
-                                  <button
-                                    onClick={() => handleTranslate()}
-                                    disabled={translating}
-                                    className="px-3 py-2 border-2 border-[#E38B52] text-[#E38B52] text-xs sm:text-sm rounded-xl bg-white hover:bg-orange-50 active:scale-95 active:bg-orange-100 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Translate to Malayalam"
-                                  >
-                                    <svg
-                                      className="w-4 h-4"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      xmlns="http://www.w3.org/2000/svg"
-                                    >
-                                      <circle
-                                        cx="12"
-                                        cy="12"
-                                        r="10"
-                                        stroke="#E38B52"
-                                        strokeWidth="2"
-                                        fill="#fff"
-                                      />
-                                      <path
-                                        d="M2 12h20"
-                                        stroke="#E38B52"
-                                        strokeWidth="2"
-                                      />
-                                      <path
-                                        d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"
-                                        stroke="#E38B52"
-                                        strokeWidth="2"
-                                        fill="none"
-                                      />
-                                    </svg>
-                                    {translating ? "Translating..." : "Malayalam"}
                                   </button>
                                   <button
                                     onClick={handleSendToParent}
