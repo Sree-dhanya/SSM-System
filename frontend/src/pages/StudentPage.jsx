@@ -686,19 +686,11 @@ const StudentPage = () => {
   const [collapsedSummarySections, setCollapsedSummarySections] = useState({});
 
   // IEP OCR state
-  const [ocrImage, setOcrImage] = useState(null);
-  const [ocrLoading, setOcrLoading] = useState(false);
-  const [ocrError, setOcrError] = useState(null);
-  const [extractedTables, setExtractedTables] = useState([]);
-  const [savedTables, setSavedTables] = useState([]);
-  const [ocrMethod, setOcrMethod] = useState(null);
+  const fileInputRef = useRef(null);
+  const [savedTables, setSavedTables] = useState([]);  
   const [reportDate, setReportDate] = useState("");
-  const [extractionNotification, setExtractionNotification] = useState(null);
   const [showTableDetails, setShowTableDetails] = useState({});
   const [tableSavedStatus, setTableSavedStatus] = useState({});
-  const [extractionData, setExtractionData] = useState(null);
-  const [extractionSummary, setExtractionSummary] = useState(null);
-  const fileInputRef = useRef(null);
 
   // Translation state
   const [translating, setTranslating] = useState(false);
@@ -2459,197 +2451,35 @@ const StudentPage = () => {
     }
   }, [id]);
 
-  // OCR Image Upload Handlers
-  const handleOcrImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file type
-      const validTypes = [
-        "image/jpeg",
-        "image/jpg",
-        "image/png",
-        "image/bmp",
-        "image/tiff",
-      ];
-      if (!validTypes.includes(file.type)) {
-        setOcrError(
-          "Invalid file type. Please upload a JPG, PNG, BMP, or TIFF image.",
-        );
-        if (fileInputRef.current) fileInputRef.current.value = null;
-        return;
-      }
-
-      // Validate file size (max 10MB)
-      const maxSize = 10 * 1024 * 1024;
-      if (file.size > maxSize) {
-        setOcrError(
-          `File size exceeds 10MB limit. File size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`,
-        );
-        if (fileInputRef.current) fileInputRef.current.value = null;
-        return;
-      }
-
-      setOcrImage(file);
-      setOcrError(null);
-    }
-  };
-
-  // Core OCR upload function that accepts a file
-  const handleOcrUploadWithFile = async (file) => {
-    if (!file) {
-      setOcrError("No image file provided.");
-      return;
-    }
-
-    setOcrLoading(true);
-    setOcrError(null);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const baseUrl =
-        process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
-      const token = localStorage.getItem("token");
-
-      const config = {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      };
-
-      const res = await axios.post(
-        `${baseUrl}/api/v1/students/upload-report`,
-        formData,
-        config,
-      );
-      const data = res.data;
-
-      if (data.success && data.tables && data.tables.length > 0) {
-        const extractedAt = new Date().toISOString();
-
-        // Enrich every table once
-        const datedTables = data.tables.map((t) => ({
-          ...t,
-          report_date: reportDate || null,
-          extracted_at: t.extracted_at || extractedAt,
-          isEditable: true, // newly extracted tables are editable + show Save
-          assessment_phase: "1st assmt", // default: converted image = 1st assessment
-          last_edited_at: extractedAt, // first â€œeditâ€ time = extraction
-        }));
-
-        // Use enriched tables for current session
-        setExtractedTables(datedTables);
-        setOcrMethod(data.method);
-        setExtractionData(data.extracted_data || null);
-        setExtractionSummary(data.extraction_summary || null);
-
-        // Persist enriched tables in history
-        try {
-          const key = `special-education-tables:${id}`;
-          setSavedTables((prev) => {
-            const updated = [...prev, ...datedTables];
-            if (typeof window !== "undefined") {
-              window.localStorage.setItem(key, JSON.stringify(updated));
-            }
-            return updated;
-          });
-        } catch (err) {
-          console.warn("Failed to save Special Education tables history", err);
-        }
-
-        // Show temporary notification
-        setExtractionNotification({
-          tableCount: data.tables.length,
-          method: data.method || "Unknown",
-        });
-
-        // Auto-hide after 4 seconds
-        setTimeout(() => {
-          setExtractionNotification(null);
-        }, 4000);
-      } else {
-        setOcrError(
-          "No tables detected in the image. Please try a different image or adjust the crop area.",
-        );
-        showToast("No tables detected in the image.", "warning");
-      }
-    } catch (error) {
-      console.error("OCR upload error:", error);
-      const errorMessage =
-        error.response?.data?.detail ||
-        error.message ||
-        "Failed to process image.";
-      setOcrError(`OCR failed: ${errorMessage}`);
-      showToast(`OCR failed: ${errorMessage}`, "error");
-    } finally {
-      setOcrLoading(false);
-    }
-  };
-
-  // Wrapper for manual extract button (uses already selected image)
-  const handleOcrUpload = async () => {
-    if (!ocrImage) {
-      setOcrError("Please select an image first.");
-      return;
-    }
-    if (!reportDate) {
-      setOcrError("Please enter the report date.");
-      return;
-    }
-    await handleOcrUploadWithFile(ocrImage);
-  };
-
-  const handleClearOcrData = () => {
-    setOcrImage(null);
-    setExtractedTables([]);
-    setOcrError(null);
-    setOcrMethod(null);
-    setExtractionData(null);
-    setExtractionSummary(null);
-    if (fileInputRef.current) fileInputRef.current.value = null;
-  };
-
+  // manual table
   const handleAddManualTable = () => {
+    if (!reportDate) {
+      alert("Please select a report date before creating the table.");
+      return;
+    }
+  
     const nowIso = new Date().toISOString();
   
-    // Meta + skill column
     const baseMetaHeaders = [
       "Student Name",
       "Register Number",
       "Assessment Date",
       "Skill Area",
     ];
-  
-    // 20 session columns (drives 20 questions per skill)
     const sessionHeaders = Array.from({ length: 20 }, (_, i) => `Session ${i + 1}`);
-  
-    // Summary / quarter-total columns (same names used by extracted tables)
     const summaryHeaders = ["Total A", "Total B", "I Qr", "II Qr", "III Qr", "IV Qr"];
-  
     const headers = [...baseMetaHeaders, ...sessionHeaders, ...summaryHeaders];
   
-    // One row per skill (18 skills), sessions prefilled with "B"
     const rows = SPECIAL_EDU_SKILLS.map((skill) => {
       const row = {};
       headers.forEach((h) => {
         const lower = String(h).toLowerCase();
-        if (lower === "student name") {
-          row[h] = student?.name || "";
-        } else if (lower === "register number") {
-          row[h] = student?.admissionNumber || "";
-        } else if (lower === "assessment date") {
-          row[h] = reportDate || "";
-        } else if (lower.includes("skill")) {
-          row[h] = skill.label;
-        } else if (sessionHeaders.includes(h)) {
-          // All session cells start as "B"
-          row[h] = "B";
-        } else {
-          // Total A/B and quarter columns start empty
-          row[h] = "";
-        }
+        if (lower === "student name") row[h] = student?.name || "";
+        else if (lower === "register number") row[h] = student?.admissionNumber || "";
+        else if (lower === "assessment date") row[h] = reportDate || "";
+        else if (lower.includes("skill")) row[h] = skill.label;
+        else if (sessionHeaders.includes(h)) row[h] = "B";
+        else row[h] = "";
       });
       return row;
     });
@@ -2668,6 +2498,8 @@ const StudentPage = () => {
   
     setSavedTables((prev) => {
       const updated = [...prev, newTable];
+  
+      // persist
       try {
         if (typeof window !== "undefined" && id) {
           window.localStorage.setItem(
@@ -2678,6 +2510,23 @@ const StudentPage = () => {
       } catch (err) {
         console.warn("Failed to persist manually added Special Education table", err);
       }
+  
+      // Determine where the new table appears when the UI sorts newest-first,
+      // then mark that index as opened and keep questions closed.
+      const sorted = [...updated].sort((a, b) => {
+        const da = new Date(a.report_date || a.extracted_at || 0);
+        const db = new Date(b.report_date || b.extracted_at || 0);
+        return db - da;
+      });
+      const newIndex = sorted.findIndex((t) => t === newTable);
+  
+      setShowTableDetails((prevDetails) => ({
+        ...prevDetails,
+        [newIndex]: true,
+      }));
+      setQuestionsOpenByTable((prev) => ({ ...(prev || {}), [newIndex]: false }));
+      setActiveSkillByTable((prev) => ({ ...(prev || {}), [newIndex]: null }));
+  
       return updated;
     });
   };
@@ -2749,18 +2598,7 @@ const StudentPage = () => {
       }
 
       return updated;
-    });
-
-    // keep extractedTables in sync for current session
-    setExtractedTables((prev) => {
-      const sorted = [...prev].sort((a, b) => {
-        const da = new Date(a.report_date || a.extracted_at || 0);
-        const db = new Date(b.report_date || b.extracted_at || 0);
-        return db - da;
-      });
-      const tableToDelete = sorted[viewIndex];
-      return prev.filter((t) => t !== tableToDelete);
-    });
+    });    
   };
 
   const handleExportToCSV = (table, index) => {
@@ -6610,270 +6448,99 @@ const StudentPage = () => {
             </div>
           ) : activeTab === "special-education" ? (
             <div className="max-w-6xl mx-auto p-6">
-              {student && (
-                <div className="mt-4 mb-2 bg-white/70 rounded-xl px-4 py-3 border border-[#E38B52]/20">
-                  <p className="text-sm text-[#170F49]">
-                    Special Education report for:{" "}
-                    <span className="font-semibold">{student.name}</span>
-                    {student.studentId && (
-                      <span className="text-xs text-[#6F6C90] ml-2">
-                        (ID: {student.studentId})
-                      </span>
-                    )}
-                  </p>
-                </div>
-              )}
-
-              {/* Upload Section */}
-              <div className="flex items-center gap-4 mb-4">
-                <div className="flex-1">
-                  <div className="flex flex-col md:flex-row gap-4">
-                    {/* File input (left) */}
-                    <div className="md:w-1/2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Select Report Image
-                      </label>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/bmp,image/tiff"
-                        onChange={handleOcrImageSelect}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Supported formats: JPG, PNG, BMP, TIFF (Max 10MB)
-                      </p>
-                    </div>
-
-                    {/* Report date (right) */}
-                    <div className="md:w-1/2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Report Date
-                      </label>
+              <h2 className="text-2xl font-bold text-[#170F49] mb-6 pb-4 border-b border-[#E38B52]/20 flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 mr-2 text-[#E38B52]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6"
+                  />
+                </svg>
+                Special Education Report
+              </h2>
+              {/* Report Setup - Cylinder Container */}
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Assessment of : {" "}
+                    <span>{student.name}</span>
+                </h3>
+              
+                <div className="flex flex-col md:flex-row gap-6 items-end">
+                  {/* Report Date */}
+                  <div className="flex items-center gap-3">
+                    <label className="block text-sm font-semibold text-[#170F49] whitespace-nowrap">
+                      Report Date
+                    </label>
+                    
+                    <div className="relative w-40 group">
+                      <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-[#E38B52]/40 to-[#F5A572]/40 blur-lg opacity-60 group-focus-within:opacity-100 transition-opacity duration-300" />
+                      
                       <input
                         type="date"
                         value={reportDate}
+                        max={new Date().toISOString().slice(0, 10)}
                         onChange={(e) => setReportDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent"
+                        className="relative w-full px-3 py-1.5 rounded-xl border border-[#E38B52]/25 bg-white/90 text-[#170F49] font-medium shadow-sm transition-all duration-300 hover:border-[#E38B52]/45 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-[#E38B52]/20 focus:border-[#E38B52]"
                       />
                     </div>
                   </div>
-                  <div className="flex gap-3 pt-6">
-                    <button
-                      onClick={handleOcrUpload}
-                      disabled={!ocrImage || ocrLoading}
-                      className="px-6 py-2.5 bg-gradient-to-r from-[#E38B52] to-[#F5A572] text-white rounded-lg hover:from-[#C8742F] hover:to-[#E38B52] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2"
+              
+                  {/* Create Table Button */}
+                 <button
+                    type="button"
+                    onClick={handleAddManualTable}
+                    disabled={!reportDate}
+                    className={`px-6 py-2.5 bg-white text-[#E38B52] border border-[#E38B52] rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2 whitespace-nowrap ${
+                      !reportDate ? "opacity-50 cursor-not-allowed hover:bg-white" : "hover:bg-[#FFF3E8]"
+                    }`}
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                     >
-                      {ocrLoading ? (
-                        <>
-                          <svg
-                            className="animate-spin h-5 w-5"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            ></circle>
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            ></path>
-                          </svg>
-                          <span className="text-sm">Processing... (~5s)</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                            />
-                          </svg>
-                          Extract Table
-                        </>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleAddManualTable}
-                      className="px-6 py-2.5 bg-white text-[#E38B52] border border-[#E38B52] rounded-lg hover:bg-[#FFF3E8] transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 6v12m6-6H6"
-                        />
-                      </svg>
-                      Add Table
-                    </button>        
-
-                    {(ocrImage || extractedTables.length > 0) && (
-                      <button
-                        onClick={handleClearOcrData}
-                        className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                        Clear
-                      </button>
-                    )}
-
-                    {/* Extraction Success Notification (Temporary) */}
-                    {extractionNotification && (
-                      <div className="ml-4 bg-green-50 border border-green-200 rounded-lg px-4 py-2 flex items-center gap-2 shadow-md animate-fade-in">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5 text-green-500 flex-shrink-0"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <div className="text-sm">
-                          <p className="font-medium text-green-800">
-                            Successfully extracted{" "}
-                            {extractionNotification.tableCount} table(s)
-                          </p>
-                          <p className="text-xs text-green-700">
-                            Method used: {extractionNotification.method}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Error Display */}
-                  {ocrError && (
-                    <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                      <div>
-                        <p className="text-sm font-medium text-red-800">
-                          Error
-                        </p>
-                        <p className="text-sm text-red-700">{ocrError}</p>
-                      </div>
-                    </div>
-                  )}
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6v12m6-6H6"
+                      />
+                    </svg>
+                    Create Table
+                  </button>
                 </div>
+              
+                <p className="mt-3 text-xs text-[#6F6C90]">
+                  Select a date and click Create Table to add a new assessment.
+                </p>
               </div>
 
               {/* Results Section */}
-              {savedTables.length > 0 && (
+              {savedTables.length > 0 ? (
                 <div className="space-y-6">
-                  {/* Extraction Data Display */}
-                  {extractionSummary && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h3 className="text-md font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                          />
-                        </svg>
-                        Extracted Data (Stage 2: A/B Values)
-                      </h3>
-                      <div className="grid grid-cols-1 gap-3">
-                        <div className="bg-white rounded p-3">
-                          <p className="text-sm font-medium text-gray-700">
-                            Skills Found: {extractionSummary.total_skills_found}
-                          </p>
-                          <p className="text-xs text-gray-600 mt-1">
-                            {extractionSummary.skills_found?.join(", ")}
-                          </p>
-                        </div>
-                        {extractionSummary.sample_values &&
-                          Object.keys(extractionSummary.sample_values).length >
-                            0 && (
-                            <div className="bg-white rounded p-3">
-                              <p className="text-sm font-medium text-gray-700 mb-2">
-                                Sample Values (First 10 sessions):
-                              </p>
-                              <div className="space-y-1">
-                                {Object.entries(
-                                  extractionSummary.sample_values,
-                                ).map(([skill, values]) => (
-                                  <div
-                                    key={skill}
-                                    className="text-xs font-mono"
-                                  >
-                                    <span className="font-semibold text-[#E38B52]">
-                                      {skill}:
-                                    </span>
-                                    <span className="ml-2 text-gray-700">
-                                      [{values.join(", ")}]
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                      </div>
-                    </div>
-                  )}
-
                   {/* Display Tables (all past + current, collapsible) */}
                   {[...savedTables]
                     .sort((a, b) => {
@@ -6885,11 +6552,21 @@ const StudentPage = () => {
                       <details
                         key={tableIndex}
                         data-special-edu-table="true"
+                        open={!!showTableDetails[tableIndex]}
                         className="bg-white rounded-2xl shadow-lg overflow-hidden transform transition-all duration-200 hover:shadow-2xl hover:-translate-y-1 hover:scale-[1.01]"
                       >
-                        {/* Clickable header row */}
-                        <summary className="bg-gradient-to-r from-[#E38B52] to-[#F5A572] px-6 py-4 flex items-center justify-between cursor-pointer list-none">
-                          <div className="flex-1">
+                        <summary
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowTableDetails((prev) => ({
+                              ...prev,
+                              [tableIndex]: !prev[tableIndex],
+                            }));
+                          }}
+                          className="bg-gradient-to-r from-[#E38B52] to-[#F5A572] px-6 py-4 flex items-center justify-between cursor-pointer list-none"
+                        >
+                        <div className="flex-1">
                             {/* Primary Info - Always Visible */}
                             <h3 className="text-lg font-bold text-white">
                               Table {tableIndex + 1}
@@ -6941,9 +6618,6 @@ const StudentPage = () => {
                             {/* Secondary Info - Collapsible */}
                             {showTableDetails[tableIndex] && (
                               <div className="mt-3 pt-3 border-t border-white/20 text-xs text-white/70 space-y-1">
-                                <div>
-                                  Extracted on: {formatDate(table.extracted_at)}
-                                </div>
                                 <div>
                                   Last edited:{" "}
                                   {formatDate(table.last_edited_at) ||
@@ -8015,37 +7689,14 @@ const StudentPage = () => {
                         </div>
                       </details>
                     ))}
-                </div>
-              )}
-
-              {/* Instructions */}
-              {savedTables.length === 0 && !ocrLoading && (
-                <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-                  <div className="w-16 h-16 bg-[#E38B52]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-8 w-8 text-[#E38B52]"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
+                </div>                 
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-dashed border-[#E38B52]/30 bg-white/70 p-6 text-center text-sm text-[#6F6C90]">
+                    No table created yet.
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    No tables extracted yet
-                  </h3>
-                  <p className="text-gray-600">
-                    Upload an image of a student report table to get started
-                  </p>
-                </div>
-              )}
-            </div>
+                )}               
+              
+            </div>          
           ) : (
             <div className="flex gap-6 items-start justify-center relative max-w-[1600px] mx-auto">
               {/* Left Sidebar Navigation */}
