@@ -32,11 +32,11 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Special School Management System"
     
-    # Hugging Face settings
-    HUGGINGFACE_API_TOKEN: Optional[str] = None
-    # Hugging Face Inference endpoint.
-    # HF deprecated `https://api-inference.huggingface.co`; use router by default.
-    HUGGINGFACE_BASE_URL: str = "https://router.huggingface.co"
+    # Google Generative AI (Gemini API) settings
+    GEMINI_API_KEY: Optional[str] = None
+    # Gemini model to use for translation and summarization
+    # Free tier models: gemini-1.5-flash (recommended), gemini-1.5-pro
+    GEMINI_MODEL: str = "gemini-1.5-flash"
 
     class Config:
         env_file = str(ENV_FILE)

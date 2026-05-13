@@ -19,14 +19,10 @@ python-dotenv==1.0.0
 pydantic[email]==2.4.2
 pydantic-settings==2.0.3
 requests==2.31.0
-huggingface-hub==0.24.6
+
+# Google Generative AI (Gemini API)
+google-generativeai>=0.3.0
 
 # Testing
 pytest==7.4.3
 httpx==0.25.1 
-
-# Translation - IndicTrans2
-transformers>=4.35.0
-torch>=2.0.0
-sentencepiece>=0.1.99
-sacremoses>=0.0.53 
