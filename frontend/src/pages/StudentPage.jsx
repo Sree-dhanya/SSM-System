@@ -1556,6 +1556,7 @@ const StudentPage = () => {
   const [documentFile, setDocumentFile] = useState(null);
   const [documentUploading, setDocumentUploading] = useState(false);
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [uploadedDocTypes, setUploadedDocTypes] = useState({});
   const documentInputRef = useRef(null);
 
   // Toast notification state
@@ -2180,6 +2181,42 @@ const StudentPage = () => {
     } catch (error) {
       console.error("Error deleting document:", error);
       showToast("Failed to delete document.", "error");
+    }
+  };
+
+  const handleDocumentTypeUpload = async (file, docTypeId, docTypeLabel) => {
+    try {
+      setDocumentUploading(true);
+      const baseUrl =
+        process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
+      const token = localStorage.getItem("token");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("documentType", docTypeId);
+      formData.append("documentTypeLabel", docTypeLabel);
+      formData.append("studentId", id);
+
+      const response = await axios.post(
+        `${baseUrl}/api/v1/students/${id}/documents`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.status !== 200) throw new Error("Upload failed");
+
+      showToast(`${docTypeLabel} uploaded successfully`, "success");
+      setUploadedDocTypes((prev) => ({ ...prev, [docTypeId]: true }));
+      await fetchDocuments();
+    } catch (error) {
+      console.error("Error uploading document:", error);
+      showToast(`Failed to upload ${docTypeLabel}`, "error");
+    } finally {
+      setDocumentUploading(false);
     }
   };
 
@@ -5289,30 +5326,114 @@ const isPhaseUnlocked = (table, targetPhase) => {
                 </div>
               </div>
             </div>
-          ) : activeTab === "student-details" ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-              {/* Basic Information Section */}
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
+                    ) : activeTab === "student-details" ? (
+            <div className="max-w-6xl mx-auto p-6">
+              {/* Main Header */}
+              <h2 className="text-2xl font-bold text-[#170F49] mb-6 pb-4 border-b border-[#E38B52]/20 flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 mr-2 text-[#E38B52]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                Student Details
+              </h2>
+          
+              {/* Edit Button */}
+              <div className="mb-6 flex justify-end">
+                {!editMode ? (
+                  <button
+                    onClick={handleEditStart}
+                    className="px-6 py-2.5 bg-gradient-to-r from-[#E38B52] to-[#F5A572] text-white rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                    Edit Student
+                  </button>
+                ) : (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleEditSave}
+                      className="px-6 py-2.5 bg-green-500 text-white rounded-lg transition-all duration-300 shadow-md hover:shadow-lg hover:bg-green-600 flex items-center gap-2"
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Save Changes
+                    </button>
+                    <button
+                      onClick={handleEditCancel}
+                      className="px-6 py-2.5 bg-gray-400 text-white rounded-lg transition-all duration-300 shadow-md hover:shadow-lg hover:bg-gray-500"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+          
+              {/* Personal Information Section */}
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
                   Personal Information
-                </h2>
-                <div className="flex flex-col md:flex-row gap-6 p-4 md:p-6 bg-white/50 rounded-2xl">
-                  {/* Student Photo */}
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-40 h-40 rounded-2xl overflow-hidden border-4 border-white/50 shadow-xl">
+                </h3>
+          
+                <div className="flex flex-col md:flex-row gap-8">
+                  {/* Photo Section */}
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-48 h-48 rounded-2xl overflow-hidden border-4 border-white/50 shadow-xl">
                       <img
-                        // This logic shows the preview, then the saved photo, then a placeholder
                         src={
                           photoPreview ||
                           student?.photoUrl ||
-                          "https://placehold.co/160x160/EFEFEF/AAAAAA?text=No+Photo"
+                          "https://placehold.co/200x200/EFEFEF/AAAAAA?text=No+Photo"
                         }
                         alt="Student"
                         className="w-full h-full object-cover"
                       />
                     </div>
-
-                    {/* This is the hidden file input that gets triggered */}
+          
                     <input
                       type="file"
                       ref={fileInputRef}
@@ -5320,13 +5441,11 @@ const isPhaseUnlocked = (table, targetPhase) => {
                       accept="image/png, image/jpeg"
                       style={{ display: "none" }}
                     />
-
-                    {/* Icon buttons for upload and delete */}
+          
                     <div className="flex items-center gap-2">
-                      {/* Upload/Edit button */}
                       <button
                         onClick={() => fileInputRef.current.click()}
-                        className="p-2.5 bg-white rounded-lg border border-gray-200 hover:bg-[#E38B52] hover:border-[#E38B52] transition-all duration-200 shadow-sm group"
+                        className="p-2.5 bg-white rounded-lg border border-[#E38B52]/30 hover:bg-[#E38B52] hover:border-[#E38B52] transition-all duration-200 shadow-md group"
                         title="Upload Photo"
                       >
                         <svg
@@ -5345,8 +5464,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
                           <line x1="12" y1="3" x2="12" y2="15" />
                         </svg>
                       </button>
-
-                      {/* Delete button - only show if there's a photo */}
+          
                       {(student?.photoUrl || photoPreview) && (
                         <button
                           onClick={() => {
@@ -5354,11 +5472,10 @@ const isPhaseUnlocked = (table, targetPhase) => {
                               URL.revokeObjectURL(photoPreview);
                               setPhotoPreview(null);
                               setPhotoFile(null);
-                              if (fileInputRef.current)
-                                fileInputRef.current.value = null;
+                              if (fileInputRef.current) fileInputRef.current.value = null;
                             }
                           }}
-                          className="p-2.5 bg-white rounded-lg border border-gray-200 hover:bg-red-500 hover:border-red-500 transition-all duration-200 shadow-sm group"
+                          className="p-2.5 bg-white rounded-lg border border-red-500/30 hover:bg-red-500 hover:border-red-500 transition-all duration-200 shadow-md group"
                           title="Delete Photo"
                         >
                           <svg
@@ -5378,8 +5495,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
                         </button>
                       )}
                     </div>
-
-                    {/* This button only appears when a new file is ready to be saved */}
+          
                     {photoFile && (
                       <button
                         onClick={handlePhotoUpload}
@@ -5434,868 +5550,427 @@ const isPhaseUnlocked = (table, targetPhase) => {
                       </button>
                     )}
                   </div>
-
-                  {/* Student Details */}
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 pl-8 md:pl-12">
-                    <div>
-                      <p className="text-sm text-[#6F6C90]">Full Name</p>
-                      {editMode ? (
-                        <>
+          
+                  {/* Details Grid */}
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {[
+                      { label: "Full Name", key: "name", type: "text" },
+                      { label: "Age", key: "age", type: "number" },
+                      { label: "Student ID", key: "studentId", type: "text", readOnly: true },
+                      { label: "Date of Birth", key: "dob", type: "date" },
+                      { label: "Gender", key: "gender", type: "text" },
+                      { label: "Religion", key: "religion", type: "text" },
+                      { label: "Caste", key: "caste", type: "text" },
+                      { label: "Aadhar Number", key: "aadharNumber", type: "text" },
+                      ...(editMode ? [{ label: "Blood Group", key: "bloodGroup", type: "text" }] : []),
+                      ...(editMode ? [{ label: "Category", key: "category", type: "text" }] : []),
+                    ].map((field) => (
+                      <div key={field.key}>
+                        <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
+                        {editMode ? (
                           <input
-                            type="text"
-                            name="name"
-                            value={editData?.name || ""}
+                            type={field.type}
+                            name={field.key}
+                            value={editData?.[field.key] || ""}
                             onChange={handleEditChange}
+                            readOnly={field.readOnly}
                             className="input-edit"
                           />
-                        </>
-                      ) : (
-                        <p className="text-[#170F49] font-medium">
-                          {student?.name}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm text-[#6F6C90]">Age</p>
-                      {editMode ? (
-                        <input
-                          type="number"
-                          name="age"
-                          value={editData?.age || ""}
-                          onChange={handleEditChange}
-                          className="input-edit"
-                        />
-                      ) : (
-                        <p className="text-[#170F49] font-medium">
-                          {student?.age}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm text-[#6F6C90]">Student ID</p>
-                      {editMode ? (
-                        <input
-                          type="text"
-                          name="studentId"
-                          value={student?.studentId || ""}
-                          className="input-edit"
-                          readOnly
-                        />
-                      ) : (
-                        <p className="text-[#170F49] font-medium">
-                          {student?.studentId || ""}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm text-[#6F6C90]">Date of Birth</p>
-                      {editMode ? (
-                        <input
-                          type="date"
-                          name="dob"
-                          value={editData?.dob || ""}
-                          onChange={handleEditChange}
-                          className="input-edit"
-                        />
-                      ) : (
-                        <p className="text-[#170F49] font-medium">
-                          {student?.dob}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm text-[#6F6C90]">Gender</p>
-                      {editMode ? (
-                        <input
-                          type="text"
-                          name="gender"
-                          value={editData?.gender || ""}
-                          onChange={handleEditChange}
-                          className="input-edit"
-                        />
-                      ) : (
-                        <p className="text-[#170F49] font-medium">
-                          {student?.gender}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm text-[#6F6C90]">Religion</p>
-                      {editMode ? (
-                        <input
-                          type="text"
-                          name="religion"
-                          value={editData?.religion || ""}
-                          onChange={handleEditChange}
-                          className="input-edit"
-                        />
-                      ) : (
-                        <p className="text-[#170F49] font-medium">
-                          {student?.religion}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm text-[#6F6C90]">Caste</p>
-                      {editMode ? (
-                        <input
-                          type="text"
-                          name="caste"
-                          value={editData?.caste || ""}
-                          onChange={handleEditChange}
-                          className="input-edit"
-                        />
-                      ) : (
-                        <p className="text-[#170F49] font-medium">
-                          {student?.caste}
-                        </p>
-                      )}
-                    </div>
-                    {/* Blood Group - EDIT ONLY */}
-                    {editMode && (
-                      <div>
-                        <p className="text-sm text-[#6F6C90]">Blood Group</p>
-                        <input
-                          type="text"
-                          name="bloodGroup"
-                          value={editData?.bloodGroup || ""}
-                          onChange={handleEditChange}
-                          className="input-edit"
-                        />
+                        ) : (
+                          <p className="text-[#170F49] font-medium text-lg">
+                            {student?.[field.key] || "N/A"}
+                          </p>
+                        )}
                       </div>
-                    )}
-
-                    {/* Category - EDIT ONLY */}
-                    {editMode && (
-                      <div>
-                        <p className="text-sm text-[#6F6C90]">Category</p>
-                        <input
-                          type="text"
-                          name="category"
-                          value={editData?.category || ""}
-                          onChange={handleEditChange}
-                          className="input-edit"
-                        />
-                      </div>
-                    )}
-                    <div>
-                      <p className="text-sm text-[#6F6C90]">Aadhar Number</p>
-                      {editMode ? (
-                        <>
-                          <input
-                            type="text"
-                            name="aadharNumber"
-                            inputMode="numeric"
-                            pattern="\d{4}\s?\d{4}\s?\d{4}"
-                            maxLength={14}
-                            value={editData?.aadharNumber || ""}
-                            onChange={handleEditChange}
-                            className="input-edit"
-                          />
-                          {aadharEditError && (
-                            <p className="text-red-500 text-xs mt-1">
-                              {aadharEditError}
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-[#170F49] font-medium">
-                          {student?.aadharNumber}
-                        </p>
-                      )}
-                    </div>
+                    ))}
                   </div>
                 </div>
+          
+                {aadharEditError && (
+                  <p className="text-red-500 text-sm mt-4">{aadharEditError}</p>
+                )}
               </div>
-
+          
               {/* Address Information Section */}
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                  Address Information
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white/50 rounded-2xl">
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Birth Place</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="birthPlace"
-                        value={editData?.birthPlace || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.birthPlace}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">House Name</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="houseName"
-                        value={editData?.houseName || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.houseName}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Block Panchayat</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="blockPanchayat"
-                        value={editData?.blockPanchayat || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.blockPanchayat}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Local Body</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="localBody"
-                        value={editData?.localBody || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.localBody}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Taluk</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="taluk"
-                        value={editData?.taluk || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.taluk}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Street Name</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="streetName"
-                        value={editData?.streetName || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.streetName}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Post Office</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="postOffice"
-                        value={editData?.postOffice || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.postOffice}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Pin Code</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="pinCode"
-                        value={editData?.pinCode || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.pinCode}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Revenue District</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="revenueDistrict"
-                        value={editData?.revenueDistrict || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.revenueDistrict}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Contact Information Section */}
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                  Contact Information
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white/50 rounded-2xl">
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Phone Number</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="phoneNumber"
-                        value={editData?.phoneNumber || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.phoneNumber}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Email</p>
-                    {editMode ? (
-                      <input
-                        type="email"
-                        name="email"
-                        value={editData?.email || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.email}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Address</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="address"
-                        value={editData?.address || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.address}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Family Information Section */}
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                  Family Information
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white/50 rounded-2xl">
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Father's Name</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="fatherName"
-                        value={editData?.fatherName || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.fatherName}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Mother's Name</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="motherName"
-                        value={editData?.motherName || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.motherName}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                  Disability Details
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white/50 rounded-2xl">
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Type of Disability</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="disabilityType"
-                        value={editData?.disabilityType || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.disabilityType || "N/A"}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">
-                      Percentage of Disability
-                    </p>
-                    {editMode ? (
-                      <input
-                        type="number"
-                        name="disabilityPercentage"
-                        value={editData?.disabilityPercentage || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.disabilityPercentage
-                          ? `${student.disabilityPercentage}%`
-                          : "N/A"}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="col-span-full">
-                  <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                    Identification Marks
-                  </h2>
-                  <div className="p-6 bg-white/50 rounded-2xl">
-                    {editMode ? (
-                      <textarea
-                        name="identificationMarks"
-                        value={editData?.identificationMarks || ""}
-                        onChange={handleEditChange}
-                        className="input-edit w-full"
-                        rows="3"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.identificationMarks || "N/A"}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Academic Information Section */}
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                  Academic Information
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white/50 rounded-2xl">
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Class</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="class"
-                        value={editData?.class || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.class}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Division</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="rollNo"
-                        value={editData?.rollNo || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.rollNo}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Roll Number</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="rollNo"
-                        value={editData?.rollNo || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.rollNo}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Academic Year</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="academicYear"
-                        value={editData?.academicYear || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.academicYear}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Admission Number</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="admissionNumber"
-                        value={editData?.admissionNumber || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.admissionNumber}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Date of Admission</p>
-                    {editMode ? (
-                      <input
-                        type="date"
-                        name="admissionDate"
-                        value={editData?.admissionDate || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.admissionDate}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Class Teacher</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="classTeacher"
-                        value={editData?.classTeacher || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.classTeacher || "N/A"}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Bank Details Section */}
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                  Bank Details
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white/50 rounded-2xl">
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Account Number</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="accountNumber"
-                        value={editData?.accountNumber || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.accountNumber}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Bank Name</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="bankName"
-                        value={editData?.bankName || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.bankName}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">Branch</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="branch"
-                        value={editData?.branch || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.branch}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6F6C90]">IFSC Code</p>
-                    {editMode ? (
-                      <input
-                        type="text"
-                        name="ifscCode"
-                        value={editData?.ifscCode || ""}
-                        onChange={handleEditChange}
-                        className="input-edit"
-                      />
-                    ) : (
-                      <p className="text-[#170F49] font-medium">
-                        {student?.ifscCode}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Therapies Section */}
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                  Therapies
-                </h2>
-
-                {/* Current Therapies */}
-                <div className="mb-6 p-6 bg-white/50 rounded-2xl">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-medium text-[#170F49]">
-                      Current Therapies
-                    </h3>
-                    <button className="bg-white/30 backdrop-blur-xl rounded-xl shadow-sm p-2 px-4 border border-white/20 hover:-translate-y-1 transition-all duration-200 flex items-center gap-2">
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M12 20h9" />
-                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                      </svg>
-                      <span className="text-sm font-medium">Edit Progress</span>
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Speech Therapy Card */}
-                    <div className="p-4 bg-white/70 rounded-xl">
-                      <div className="flex items-start gap-4">
-                        <div className="relative w-20 h-20">
-                          {/* Circular Progress */}
-                          <svg className="w-20 h-20 transform -rotate-90">
-                            <circle
-                              className="text-gray-200"
-                              strokeWidth="5"
-                              stroke="currentColor"
-                              fill="transparent"
-                              r="35"
-                              cx="40"
-                              cy="40"
-                            />
-                            <circle
-                              className="text-[#E38B52]"
-                              strokeWidth="5"
-                              strokeDasharray={220}
-                              strokeDashoffset={66} // 220 - (220 * percentageComplete)
-                              strokeLinecap="round"
-                              stroke="currentColor"
-                              fill="transparent"
-                              r="35"
-                              cx="40"
-                              cy="40"
-                            />
-                          </svg>
-                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                            <span className="text-sm font-medium text-[#170F49]">
-                              70%
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex-1">
-                          <h4 className="text-[#170F49] font-medium mb-1">
-                            Speech Therapy
-                          </h4>
-                          <p className="text-sm text-[#6F6C90] mb-2">
-                            Sessions: 15/20
-                          </p>
-                          <div className="flex items-center gap-2 text-sm text-[#6F6C90]">
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <circle cx="12" cy="12" r="10" />
-                              <polyline points="12 6 12 12 16 14" />
-                            </svg>
-                            Next Session: Tomorrow, 10:00 AM
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Occupational Therapy Card */}
-                    <div className="p-4 bg-white/70 rounded-xl">
-                      <div className="flex items-start gap-4">
-                        <div className="relative w-20 h-20">
-                          <svg className="w-20 h-20 transform -rotate-90">
-                            <circle
-                              className="text-gray-200"
-                              strokeWidth="5"
-                              stroke="currentColor"
-                              fill="transparent"
-                              r="35"
-                              cx="40"
-                              cy="40"
-                            />
-                            <circle
-                              className="text-[#E38B52]"
-                              strokeWidth="5"
-                              strokeDasharray={220}
-                              strokeDashoffset={132} // 220 - (220 * percentageComplete)
-                              strokeLinecap="round"
-                              stroke="currentColor"
-                              fill="transparent"
-                              r="35"
-                              cx="40"
-                              cy="40"
-                            />
-                          </svg>
-                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                            <span className="text-sm font-medium text-[#170F49]">
-                              40%
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex-1">
-                          <h4 className="text-[#170F49] font-medium mb-1">
-                            Occupational Therapy
-                          </h4>
-                          <p className="text-sm text-[#6F6C90] mb-2">
-                            Sessions: 8/20
-                          </p>
-                          <div className="flex items-center gap-2 text-sm text-[#6F6C90]">
-                            <svg
-                              width="16"
-                              height="16"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <circle cx="12" cy="12" r="10" />
-                              <polyline points="12 6 12 12 16 14" />
-                            </svg>
-                            Next Session: Friday, 2:00 PM
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Certificates Section */}
-              <div className="col-span-full">
-                <h2 className="text-xl font-semibold text-[#170F49] mb-4">
-                  Certificates & Documents
-                </h2>
-                <div className="p-6 bg-white/50 rounded-2xl">
-                  {/* Upload Section */}
-                  <div className="mb-6 p-4 bg-white/70 rounded-xl border-2 border-dashed border-[#E38B52]/30">
-                    <input
-                      type="file"
-                      ref={documentInputRef}
-                      onChange={handleDocumentChange}
-                      accept=".pdf"
-                      style={{ display: "none" }}
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
                     />
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                  Address Information
+                </h3>
+          
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[
+                    { label: "Birth Place", key: "birthPlace" },
+                    { label: "House Name", key: "houseName" },
+                    { label: "Block Panchayat", key: "blockPanchayat" },
+                    { label: "Local Body", key: "localBody" },
+                    { label: "Taluk", key: "taluk" },
+                    { label: "Street Name", key: "streetName" },
+                    { label: "Post Office", key: "postOffice" },
+                    { label: "Pin Code", key: "pinCode" },
+                    { label: "Revenue District", key: "revenueDistrict" },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
+                      {editMode ? (
+                        <input
+                          type="text"
+                          name={field.key}
+                          value={editData?.[field.key] || ""}
+                          onChange={handleEditChange}
+                          className="input-edit"
+                        />
+                      ) : (
+                        <p className="text-[#170F49] font-medium">{student?.[field.key] || "N/A"}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+          
+              {/* Contact Information Section */}
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Contact Information
+                </h3>
+          
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[
+                    { label: "Phone Number", key: "phoneNumber" },
+                    { label: "Email", key: "email" },
+                    { label: "Address", key: "address" },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
+                      {editMode ? (
+                        <input
+                          type={field.key === "email" ? "email" : "text"}
+                          name={field.key}
+                          value={editData?.[field.key] || ""}
+                          onChange={handleEditChange}
+                          className="input-edit"
+                        />
+                      ) : (
+                        <p className="text-[#170F49] font-medium">{student?.[field.key] || "N/A"}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+          
+              {/* Family Information Section */}
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+                    />
+                  </svg>
+                  Family Information
+                </h3>
+          
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[
+                    { label: "Father's Name", key: "fatherName" },
+                    { label: "Mother's Name", key: "motherName" },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
+                      {editMode ? (
+                        <input
+                          type="text"
+                          name={field.key}
+                          value={editData?.[field.key] || ""}
+                          onChange={handleEditChange}
+                          className="input-edit"
+                        />
+                      ) : (
+                        <p className="text-[#170F49] font-medium">{student?.[field.key] || "N/A"}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+          
+              {/* Disability Details Section */}
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  Disability Details
+                </h3>
+          
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[
+                    { label: "Type of Disability", key: "disabilityType" },
+                    { label: "Percentage of Disability", key: "disabilityPercentage", suffix: "%" },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
+                      {editMode ? (
+                        <input
+                          type={field.key === "disabilityPercentage" ? "number" : "text"}
+                          name={field.key}
+                          value={editData?.[field.key] || ""}
+                          onChange={handleEditChange}
+                          className="input-edit"
+                        />
+                      ) : (
+                        <p className="text-[#170F49] font-medium">
+                          {student?.[field.key] ? `${student[field.key]}${field.suffix || ""}` : "N/A"}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+          
+                <div className="mt-6">
+                  <p className="text-sm text-[#6F6C90] mb-2 font-semibold">Identification Marks</p>
+                  {editMode ? (
+                    <textarea
+                      name="identificationMarks"
+                      value={editData?.identificationMarks || ""}
+                      onChange={handleEditChange}
+                      className="input-edit w-full"
+                      rows="3"
+                    />
+                  ) : (
+                    <p className="text-[#170F49] font-medium">{student?.identificationMarks || "N/A"}</p>
+                  )}
+                </div>
+              </div>
+          
+              {/* Academic Information Section */}
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747S17.5 6.253 12 6.253z"
+                    />
+                  </svg>
+                  Academic Information
+                </h3>
+          
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[
+                    { label: "Class", key: "class" },
+                    { label: "Division", key: "rollNo" },
+                    { label: "Roll Number", key: "rollNo" },
+                    { label: "Academic Year", key: "academicYear" },
+                    { label: "Admission Number", key: "admissionNumber" },
+                    { label: "Date of Admission", key: "admissionDate", type: "date" },
+                    { label: "Class Teacher", key: "classTeacher" },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
+                      {editMode ? (
+                        <input
+                          type={field.type || "text"}
+                          name={field.key}
+                          value={editData?.[field.key] || ""}
+                          onChange={handleEditChange}
+                          className="input-edit"
+                        />
+                      ) : (
+                        <p className="text-[#170F49] font-medium">{student?.[field.key] || "N/A"}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+          
+              {/* Bank Details Section */}
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Bank Details
+                </h3>
+          
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[
+                    { label: "Account Number", key: "accountNumber" },
+                    { label: "Bank Name", key: "bankName" },
+                    { label: "Branch", key: "branch" },
+                    { label: "IFSC Code", key: "ifscCode" },
+                  ].map((field) => (
+                    <div key={field.key}>
+                      <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
+                      {editMode ? (
+                        <input
+                          type="text"
+                          name={field.key}
+                          value={editData?.[field.key] || ""}
+                          onChange={handleEditChange}
+                          className="input-edit"
+                        />
+                      ) : (
+                        <p className="text-[#170F49] font-medium">{student?.[field.key] || "N/A"}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+          
+              {/* Certificates & Documents Section */}
+              <div className="p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-6 flex items-center gap-2">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 text-[#E38B52]"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  Certificates & Documents
+                </h3>
+
+                {/* Document Types Upload Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {[
+                    { id: "aadhar", label: "Aadhar" },
+                    { id: "birth_certificate", label: "Birth Certificate" },
+                    { id: "disability_certificate", label: "Disability Certificate" },
+                    { id: "ration_card", label: "Ration Card" },
+                    { id: "pwd_registration", label: "Person with Disability Registration" },
+                    { id: "medical_certificate", label: "Medical Certificate" },
+                    { id: "unique_disability", label: "Unique Disability" },
+                    { id: "hospital_assessment", label: "Assessment Report from Hospital" },
+                    { id: "passbook", label: "Passbook" },
+                    { id: "nish_assessment", label: "NISH Psychological Assessment Report" },
+                  ].map((docType) => (
+                    <div
+                      key={docType.id}
+                      className="p-4 bg-white/70 rounded-xl border border-[#E38B52]/20 hover:shadow-md transition-all duration-200"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <svg
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="#E38B52"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                            </svg>
+                            <p className="font-medium text-[#170F49] text-sm">{docType.label}</p>
+                          </div>
+                          <p className="text-xs text-[#6F6C90]">PDF only • Max 5MB</p>
+                        </div>
                         <button
-                          onClick={() => documentInputRef.current?.click()}
-                          className="px-4 py-2 bg-[#E38B52] text-white rounded-lg hover:bg-[#d67a3f] transition-all duration-200 flex items-center gap-2"
+                          onClick={() => {
+                            const input = document.createElement("input");
+                            input.type = "file";
+                            input.accept = ".pdf";
+                            input.onchange = (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                if (file.size > 5 * 1024 * 1024) {
+                                  showToast("File size exceeds 5MB", "error");
+                                  return;
+                                }
+                                if (file.type !== "application/pdf") {
+                                  showToast("Only PDF files allowed", "error");
+                                  return;
+                                }
+                                handleDocumentTypeUpload(file, docType.id, docType.label);
+                              }
+                            };
+                            input.click();
+                          }}
+                          className="px-3 py-2 bg-gradient-to-r from-[#E38B52] to-[#F5A572] text-white rounded-lg hover:shadow-lg transition-all duration-200 flex items-center gap-2 text-sm whitespace-nowrap"
                         >
                           <svg
-                            width="20"
-                            height="20"
+                            width="16"
+                            height="16"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
@@ -6307,55 +5982,77 @@ const isPhaseUnlocked = (table, targetPhase) => {
                             <polyline points="17 8 12 3 7 8" />
                             <line x1="12" y1="3" x2="12" y2="15" />
                           </svg>
-                          Select PDF Document
+                          {uploadedDocTypes[docType.id] ? "Uploaded" : "Upload"}
                         </button>
-                        {documentFile && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-[#170F49]">
-                              {documentFile.name}
-                            </span>
-                            <span className="text-xs text-[#6F6C90]">
-                              ({(documentFile.size / 1024).toFixed(2)} KB)
-                            </span>
-                          </div>
-                        )}
                       </div>
-                      {documentFile && (
-                        <button
-                          onClick={handleDocumentUpload}
-                          disabled={documentUploading}
-                          className={`px-4 py-2 text-white rounded-lg transition-all duration-200 flex items-center gap-2 ${
-                            documentUploading
-                              ? "bg-gray-400 cursor-not-allowed"
-                              : "bg-green-500 hover:bg-green-600"
-                          }`}
+                    </div>
+                  ))}
+                </div>
+
+                                {/* Documents List */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-[#170F49] mb-4">Uploaded Documents</h4>
+                  {documentsLoading ? (
+                    <div className="text-center py-8 text-[#6F6C90]">Loading documents...</div>
+                  ) : documents.length === 0 ? (
+                    <div className="text-center py-12 px-4">
+                      <svg
+                        className="mx-auto h-16 w-16 text-gray-300 mb-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <p className="text-[#6F6C90] text-sm">No documents uploaded yet</p>
+                      <p className="text-xs text-[#6F6C90] mt-2">Upload documents from the grid above</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {documents.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="group p-5 bg-gradient-to-br from-white to-orange-50/30 rounded-xl border border-[#E38B52]/20 hover:border-[#E38B52]/40 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
                         >
-                          {documentUploading ? (
-                            <>
+                          {/* Header with Icon and Name */}
+                          <div className="flex items-start gap-3 mb-4">
+                            <div className="p-3 bg-[#E38B52]/10 rounded-lg group-hover:bg-[#E38B52]/20 transition-colors duration-200">
                               <svg
-                                className="animate-spin h-4 w-4"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
+                                width="24"
+                                height="24"
                                 viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="#E38B52"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                ></circle>
-                                <path
-                                  className="opacity-75"
-                                  fill="currentColor"
-                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                ></path>
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
                               </svg>
-                              Uploading...
-                            </>
-                          ) : (
-                            <>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-[#170F49] text-sm truncate" title={doc.name}>
+                                {doc.name}
+                              </p>
+                              <p className="text-xs text-[#6F6C90] mt-1">
+                                {(doc.file_size / 1024).toFixed(2)} KB • {new Date(doc.upload_date).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                
+                          {/* Action Buttons */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleViewDocument(doc.id, doc.name)}
+                              className="flex-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
+                              title="View"
+                            >
                               <svg
                                 width="16"
                                 height="16"
@@ -6366,149 +6063,58 @@ const isPhaseUnlocked = (table, targetPhase) => {
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                               >
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                              Upload
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-[#6F6C90] mt-2">
-                      Only PDF files allowed. Maximum file size: 5MB
-                    </p>
-                  </div>
-
-                  {/* Documents List */}
-                  <div className="space-y-4">
-                    {documentsLoading ? (
-                      <div className="text-center py-8 text-[#6F6C90]">
-                        Loading documents...
-                      </div>
-                    ) : documents.length === 0 ? (
-                      <div className="text-center py-8 text-[#6F6C90]">
-                        <svg
-                          className="mx-auto h-12 w-12 text-gray-400 mb-3"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                          />
-                        </svg>
-                        <p>No documents uploaded yet</p>
-                      </div>
-                    ) : (
-                      documents.map((doc) => (
-                        <div
-                          key={doc.id}
-                          className="flex items-center justify-between p-4 bg-white/70 rounded-xl hover:shadow-md transition-all duration-200"
-                        >
-                          <div className="flex items-center gap-3">
-                            <svg
-                              width="24"
-                              height="24"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="#E38B52"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                              <polyline points="14 2 14 8 20 8" />
-                              <line x1="16" y1="13" x2="8" y2="13" />
-                              <line x1="16" y1="17" x2="8" y2="17" />
-                              <line x1="10" y1="9" x2="8" y2="9" />
-                            </svg>
-                            <div>
-                              <p className="font-medium text-[#170F49]">
-                                {doc.name}
-                              </p>
-                              <p className="text-sm text-[#6F6C90]">
-                                Uploaded:{" "}
-                                {new Date(doc.upload_date).toLocaleDateString()}{" "}
-                                 {(doc.file_size / 1024).toFixed(2)} KB
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                handleViewDocument(doc.id, doc.name)
-                              }
-                              className="p-2 hover:bg-blue-50 rounded-lg transition-all duration-200 group"
-                              title="View"
-                            >
-                              <svg
-                                width="20"
-                                height="20"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="text-[#6F6C90] group-hover:text-blue-500"
-                              >
                                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                                 <circle cx="12" cy="12" r="3" />
                               </svg>
+                              View
                             </button>
                             <button
-                              onClick={() =>
-                                handleDownloadDocument(doc.id, doc.name)
-                              }
-                              className="p-2 hover:bg-[#E38B52]/10 rounded-lg transition-all duration-200 group"
+                              onClick={() => handleDownloadDocument(doc.id, doc.name)}
+                              className="flex-1 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
                               title="Download"
                             >
                               <svg
-                                width="20"
-                                height="20"
+                                width="16"
+                                height="16"
                                 viewBox="0 0 24 24"
                                 fill="none"
                                 stroke="currentColor"
                                 strokeWidth="2"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                className="text-[#6F6C90] group-hover:text-[#E38B52]"
                               >
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                                 <polyline points="7 10 12 15 17 10" />
                                 <line x1="12" y1="15" x2="12" y2="3" />
                               </svg>
+                              Download
                             </button>
                             <button
-                              onClick={() =>
-                                handleDeleteDocument(doc.id, doc.name)
-                              }
-                              className="p-2 hover:bg-red-50 rounded-lg transition-all duration-200 group"
+                              onClick={() => handleDeleteDocument(doc.id, doc.name)}
+                              className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg transition-all duration-200 font-medium text-sm"
                               title="Delete"
                             >
                               <svg
-                                width="20"
-                                height="20"
+                                width="16"
+                                height="16"
                                 viewBox="0 0 24 24"
                                 fill="none"
                                 stroke="currentColor"
                                 strokeWidth="2"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                className="text-[#6F6C90] group-hover:text-red-500"
                               >
                                 <polyline points="3 6 5 6 21 6" />
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                <line x1="10" y1="11" x2="10" y2="17" />
+                                <line x1="14" y1="11" x2="14" y2="17" />
                               </svg>
                             </button>
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
