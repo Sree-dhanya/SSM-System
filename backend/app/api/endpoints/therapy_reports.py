@@ -7,12 +7,13 @@ import json
 import logging
 import re
 from datetime import date
-import httpx
+import time
 
 try:
-    from huggingface_hub import InferenceClient
-except ImportError:  # Provide a graceful message if dependency missing
-    InferenceClient = None  # type: ignore
+    import google.generativeai as genai
+except ImportError:
+    genai = None  # type: ignore
+
 from sqlalchemy.orm import Session
 
 from app import crud, schemas
@@ -20,6 +21,40 @@ from app.api import deps
 from app.core.config import settings
 
 router = APIRouter()
+
+# Initialize Gemini model (lazy-loaded)
+_gemini_model = None
+
+
+def _get_gemini_model():
+    """Get or initialize the Gemini model."""
+    global _gemini_model
+    
+    if _gemini_model is None:
+        if not genai:
+            raise HTTPException(
+                status_code=503,
+                detail="google-generativeai package not installed. Please install it with: pip install google-generativeai"
+            )
+        
+        if not settings.GEMINI_API_KEY:
+            raise HTTPException(
+                status_code=503,
+                detail="GEMINI_API_KEY environment variable not set on server."
+            )
+        
+        try:
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            _gemini_model = genai.GenerativeModel(settings.GEMINI_MODEL)
+            logger = logging.getLogger(__name__)
+            logger.info(f"Gemini model '{settings.GEMINI_MODEL}' initialized successfully")
+        except Exception as e:
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to initialize Gemini model: {e}")
+            raise HTTPException(status_code=503, detail=f"Failed to initialize Gemini API: {str(e)}")
+    
+    return _gemini_model
+
 
 
 class TherapyAISummaryRequest(BaseModel):
@@ -138,8 +173,8 @@ def ai_summarize_reports_test(
     WARNING: This endpoint bypasses authentication. Remove in production!
     Use this only for testing the AI summarization functionality.
     """
-    if not settings.HUGGINGFACE_API_TOKEN:
-        raise HTTPException(status_code=503, detail="HUGGINGFACE_API_TOKEN environment variable not set on server.")
+    if not settings.GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY environment variable not set on server.")
 
     db_student, filtered = _get_filtered_reports_for_payload(db, payload)
     analysis = _generate_comprehensive_analysis(filtered, db_student, payload)
@@ -152,23 +187,16 @@ def ai_summarize_reports(
     db: Session = Depends(deps.get_db),
     current_user: schemas.user.User = Depends(deps.get_current_active_user),
 ) -> Any:
-    """Generate a comprehensive AI analysis of therapy reports for a student using Hugging Face Inference API.
+    """Generate a comprehensive AI analysis of therapy reports for a student using Google Gemini API.
 
     Notes:
-      - Requires env var HUGGINGFACE_API_TOKEN (Hugging Face API token with read access)
-      - If huggingface_hub not installed, returns 503
+      - Requires env var GEMINI_API_KEY (Google Gemini API key)
+      - Uses gemini-1.5-flash model for free tier
       - Applies optional filtering by date range and therapy type
       - Provides detailed analysis including start/end comparisons and improvement metrics
     """
-    if not settings.HUGGINGFACE_API_TOKEN:
-        raise HTTPException(status_code=503, detail="HUGGINGFACE_API_TOKEN environment variable not set on server.")
-    
-    # Debug: Log the token being used (first 15 chars only for security)
-    token_prefix = settings.HUGGINGFACE_API_TOKEN[:15] if settings.HUGGINGFACE_API_TOKEN else "NONE"
-    print(f"\n{'='*60}")
-    print(f"AI SUMMARY REQUEST - Token prefix: {token_prefix}...")
-    print(f"Student: {payload.student_id}, Model: {payload.model}")
-    print(f"{'='*60}\n")
+    if not settings.GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY environment variable not set on server.")
 
     db_student, filtered = _get_filtered_reports_for_payload(db, payload)
     
@@ -184,24 +212,18 @@ def ai_summarize_reports_stream(
     current_user: schemas.user.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """Stream main summary progressively, then return full AI analysis as final event."""
-    if not settings.HUGGINGFACE_API_TOKEN:
-        raise HTTPException(status_code=503, detail="HUGGINGFACE_API_TOKEN environment variable not set on server.")
+    if not settings.GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY environment variable not set on server.")
 
     db_student, filtered = _get_filtered_reports_for_payload(db, payload)
 
     def event_stream():
         try:
-            # `client` is kept for backward-compat function signatures.
-            # We now call HF Router directly in `_run_model_completion`.
-            client = None
-            model_name = payload.model or "meta-llama/Llama-3.3-70B-Instruct"
             main_summary_prompt = _build_main_summary_prompt_with_fewshot(filtered, db_student)
 
             streamed_summary_parts = []
             for chunk in _stream_model_completion(
-                client=client,
                 prompt=main_summary_prompt,
-                model=model_name,
                 max_tokens=2000,
                 temperature=0.25,
             ):
@@ -240,9 +262,10 @@ def ai_summarize_reports_stream(
     )
 
 
+
 def _generate_comprehensive_analysis(reports, student, payload, precomputed_main_summary: Optional[str] = None):
     """Generate a comprehensive AI-powered analysis based on actual therapy report data."""
-    client = None
+    logger = logging.getLogger(__name__)
     
     # Calculate real improvement metrics from actual data
     improvement_metrics = _calculate_improvement_metrics(reports)
@@ -262,54 +285,46 @@ def _generate_comprehensive_analysis(reports, student, payload, precomputed_main
     # downgrading the entire response when a single AI call fails.
     baseline = _generate_fallback_analysis(reports, student, payload, improvement_metrics, date_range)
 
-    model_name = payload.model or "meta-llama/Llama-3.3-70B-Instruct"
-
     # 1. Brief Overview - AI analyzes all reports for general progress
     try:
         overview_prompt = _build_overview_prompt_with_fewshot(reports, student)
         overview_result = _run_model_completion(
-            client=client,
             prompt=overview_prompt,
-            model=model_name,
             max_tokens=300,
             temperature=0.7
         )
-        brief_overview = _extract_generated_text(overview_result)
+        brief_overview = overview_result.strip()
     except Exception as e:
-        logging.warning(f"Brief overview generation failed, using baseline: {e}")
+        logger.warning(f"Brief overview generation failed, using baseline: {e}")
         brief_overview = baseline.brief_overview
 
     # 2. Start Date Analysis - AI analyzes initial reports
     try:
         start_prompt = _build_start_analysis_prompt_with_fewshot(start_reports, student)
         start_result = _run_model_completion(
-            client=client,
             prompt=start_prompt,
-            model=model_name,
             max_tokens=350,
             temperature=0.7
         )
-        start_analysis = _extract_generated_text(start_result)
+        start_analysis = start_result.strip()
     except Exception as e:
-        logging.warning(f"Start-date analysis generation failed, using baseline: {e}")
+        logger.warning(f"Start-date analysis generation failed, using baseline: {e}")
         start_analysis = baseline.start_date_analysis
 
-    # 3. Current Status Analysis - Enhanced with text generation for detailed insights
-    end_analysis = _generate_enhanced_current_status_llama(client, end_reports, student, payload)
+    # 3. Current Status Analysis
+    end_analysis = _generate_enhanced_current_status(end_reports, student, payload)
 
     # 4. Recommendations - AI generates based on progress patterns
     try:
         recommendations_prompt = _build_recommendations_prompt_with_fewshot(reports, improvement_metrics, student)
         rec_result = _run_model_completion(
-            client=client,
             prompt=recommendations_prompt,
-            model=model_name,
             max_tokens=400,
             temperature=0.7
         )
-        recommendations = _extract_generated_text(rec_result)
+        recommendations = rec_result.strip()
     except Exception as e:
-        logging.warning(f"Recommendations generation failed, using baseline: {e}")
+        logger.warning(f"Recommendations generation failed, using baseline: {e}")
         recommendations = baseline.recommendations
 
     # 5. Main Summary - AI analyzes all report content
@@ -319,23 +334,21 @@ def _generate_comprehensive_analysis(reports, student, payload, precomputed_main
         try:
             main_summary_prompt = _build_main_summary_prompt_with_fewshot(reports, student)
             main_result = _run_model_completion(
-                client=client,
                 prompt=main_summary_prompt,
-                model=model_name,
-                max_tokens=2000,  # Large enough for detailed clinical paragraphs per section
-                temperature=0.25  # Low temperature for faithful, data-grounded output
+                max_tokens=2000,
+                temperature=0.25
             )
-            main_summary = _extract_generated_text(main_result)
+            main_summary = main_result.strip()
             if _is_low_quality_summary(main_summary):
-                logging.warning("Main summary quality check failed; using structured fallback formatter")
+                logger.warning("Main summary quality check failed; using structured fallback formatter")
                 main_summary = _build_structured_summary_fallback(reports, student)
         except Exception as e:
-            logging.warning(f"Main summary generation failed, using structured report-based fallback: {e}")
+            logger.warning(f"Main summary generation failed, using structured report-based fallback: {e}")
             main_summary = _build_structured_summary_fallback(reports, student)
     
     return TherapyAISummaryResponse(
         student_id=payload.student_id,
-        model=payload.model or "meta-llama/Llama-3.3-70B-Instruct",
+        model=settings.GEMINI_MODEL,
         used_reports=len(reports),
         truncated=False,
         summary=main_summary,
@@ -348,103 +361,88 @@ def _generate_comprehensive_analysis(reports, student, payload, precomputed_main
     )
 
 
-def _extract_summary_text(result):
-    """Extract summary text from Hugging Face API result."""
-    if isinstance(result, dict) and result.get("summary_text"):
-        return result["summary_text"].strip()
-    else:
-        return str(result)[:800]  # Limit length
+
+def _generate_enhanced_current_status(end_reports, student, payload):
+    """Generate enhanced current status analysis using Gemini API."""
+    student_name = getattr(student, 'name', 'Student')
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Build comprehensive current status context
+        context = _build_current_status_context(end_reports, student)
+        
+        # Use Gemini for detailed current status analysis
+        generation_prompt = f"""Based on the specific therapy session data below, write a personalized current status analysis for {student_name}. Use actual details from the progress notes and achievements mentioned. Avoid generic statements.
+
+{context}
+
+Personalized Current Status Analysis for {student_name}:"""
+        
+        result = _run_model_completion(
+            prompt=generation_prompt,
+            max_tokens=400,
+            temperature=0.7
+        )
+        
+        generated_text = result.strip()
+        
+        # Enhance with specific metrics from recent sessions
+        metrics_summary = _extract_current_metrics(end_reports)
+        enhanced_analysis = f"{generated_text}\n\nRecent Performance Metrics: {metrics_summary}"
+        
+        return enhanced_analysis[:800]  # Limit length
+        
+    except Exception as e:
+        logger.exception(f"Enhanced current status generation failed: {e}")
+        return _fallback_current_status_analysis(end_reports, student)
 
 
-def _extract_generated_text(result):
-    """Extract generated text from Llama text generation result."""
-    if isinstance(result, str):
-        return result.strip()
-    elif hasattr(result, 'choices') and len(result.choices) > 0:
-        # Chat completion response
-        message = result.choices[0].message
-        content = getattr(message, "content", None)
-        if isinstance(content, str):
-            return content.strip()
-        if isinstance(content, list):
-            parts = []
-            for item in content:
-                if isinstance(item, str):
-                    parts.append(item)
-                elif isinstance(item, dict):
-                    text = item.get("text") or item.get("content")
-                    if isinstance(text, str):
-                        parts.append(text)
-            merged = "\n".join([p.strip() for p in parts if p and p.strip()]).strip()
-            if merged:
-                return merged
-        return str(content).strip() if content is not None else ""
-    elif isinstance(result, dict):
-        if "generated_text" in result:
-            return result["generated_text"].strip()
-        elif "text" in result:
-            return result["text"].strip()
-        elif "choices" in result and isinstance(result["choices"], list) and result["choices"]:
-            choice = result["choices"][0]
-            if isinstance(choice, dict):
-                message = choice.get("message", {})
-                content = message.get("content") if isinstance(message, dict) else None
-                if isinstance(content, str):
-                    return content.strip()
-    return str(result)[:1000]
+
+def _run_model_completion(prompt, max_tokens, temperature):
+    """Run chat completion via Google Gemini API."""
+    try:
+        model = _get_gemini_model()
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Calling Gemini API with prompt of {len(prompt)} characters")
+        
+        response = model.generate_content(
+            prompt,
+            generation_config={
+                "max_output_tokens": max_tokens,
+                "temperature": temperature,
+            },
+            safety_settings={
+                'HATE_SPEECH': 'BLOCK_ONLY_HIGH',
+                'SEXUALLY_EXPLICIT': 'BLOCK_ONLY_HIGH',
+                'HARASSMENT': 'BLOCK_ONLY_HIGH',
+                'DANGEROUS_CONTENT': 'BLOCK_ONLY_HIGH',
+            }
+        )
+        
+        return response.text
+        
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Gemini API error: {str(e)}")
+        raise
 
 
-def _run_model_completion(client, prompt, model, max_tokens, temperature):
-    """Run chat completion via Hugging Face Router (OpenAI-compatible endpoint).
+def _stream_model_completion(prompt, max_tokens, temperature):
+    """Yield text chunks for progressive UI updates from Gemini API."""
+    try:
+        result = _run_model_completion(
+            prompt=prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        for piece in _chunk_text_for_streaming(result):
+            yield piece
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Stream completion error: {str(e)}")
+        yield f"Error generating response: {str(e)}"
 
-    Why: `huggingface_hub` <=0.24.x still targets `api-inference.huggingface.co` for model calls,
-    which now returns 410 Gone. The router endpoint is the supported replacement.
-    """
-
-    base = getattr(settings, "HUGGINGFACE_BASE_URL", "https://router.huggingface.co") or "https://router.huggingface.co"
-    base = base.rstrip("/")
-    if base.endswith("/v1"):
-        v1_base = base
-    else:
-        v1_base = f"{base}/v1"
-
-    url = f"{v1_base}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {settings.HUGGINGFACE_API_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    body = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "stream": False,
-    }
-
-    # Keep timeouts bounded so API failures degrade gracefully to fallbacks.
-    timeout = httpx.Timeout(60.0, connect=10.0)
-    with httpx.Client(timeout=timeout) as http_client:
-        resp = http_client.post(url, headers=headers, json=body)
-        resp.raise_for_status()
-        return resp.json()
-
-
-def _stream_model_completion(client, prompt, model, max_tokens, temperature):
-    """Yield text chunks for progressive UI updates.
-
-    Router streaming is possible, but to keep things robust and dependency-free,
-    we do a single completion request and chunk the result.
-    """
-    result = _run_model_completion(
-        client=client,
-        prompt=prompt,
-        model=model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    full_text = _extract_generated_text(result)
-    for piece in _chunk_text_for_streaming(full_text):
-        yield piece
 
 
 def _extract_stream_chunk_text(chunk):
@@ -710,59 +708,6 @@ def _build_start_analysis_prompt(start_reports, student):
     return prompt
 
 
-def _generate_enhanced_current_status(client, end_reports, student, payload):
-    """Generate enhanced current status analysis using text generation models."""
-    student_name = getattr(student, 'name', 'Student')
-    
-    try:
-        # Build comprehensive current status context
-        context = _build_current_status_context(end_reports, student)
-        
-        # Use text generation for detailed current status analysis with specific personalization
-        generation_prompt = f"""Based on the specific therapy session data below, write a personalized current status analysis for {student_name}. Use actual details from the progress notes and achievements mentioned. Avoid generic statements.
-
-{context}
-
-Personalized Current Status Analysis:
-{student_name} is specifically demonstrating"""
-        
-        # Try text generation first for more natural, detailed analysis
-        try:
-            gen_result = client.text_generation(
-                generation_prompt,
-                model=payload.text_gen_model or "microsoft/DialoGPT-medium",
-                max_new_tokens=200,
-                temperature=0.7,
-                do_sample=True
-            )
-            
-            if isinstance(gen_result, str):
-                generated_text = gen_result
-            else:
-                generated_text = gen_result.get('generated_text', str(gen_result))
-            
-            # Extract the generated analysis part
-            if f"{student_name} is currently demonstrating" in generated_text:
-                current_analysis = generated_text.split(f"{student_name} is currently demonstrating", 1)[1].strip()
-                current_analysis = f"{student_name} is currently demonstrating {current_analysis}"
-            else:
-                current_analysis = generated_text.strip()
-            
-            # Enhance with specific metrics from recent sessions
-            metrics_summary = _extract_current_metrics(end_reports)
-            
-            enhanced_analysis = f"{current_analysis}\n\nRecent Performance Metrics: {metrics_summary}"
-            
-            return enhanced_analysis[:800]  # Limit length
-            
-        except Exception as gen_error:
-            logging.warning(f"Text generation failed: {gen_error}, falling back to summarization")
-            # Fallback to summarization if text generation fails
-            return _fallback_current_status_analysis(client, end_reports, student, payload)
-            
-    except Exception as e:
-        logging.exception(f"Enhanced current status generation failed: {e}")
-        return _fallback_current_status_analysis(client, end_reports, student, payload)
 
 
 def _build_current_status_context(end_reports, student):
@@ -828,18 +773,10 @@ def _extract_current_metrics(end_reports):
     return f"Latest Level: {latest_progress}, Trend: {progress_trend}, Focus: {therapy_focus}, Frequency: {frequency}"
 
 
-def _fallback_current_status_analysis(client, end_reports, student, payload):
-    """Fallback current status analysis using summarization."""
-    end_prompt = _build_end_analysis_prompt(end_reports, student)
-    try:
-        end_result = client.summarization(
-            end_prompt[:6000],
-            model=payload.model or "facebook/bart-large-cnn"
-        )
-        return _extract_summary_text(end_result)
-    except Exception as e:
-        logging.warning(f"Summarization fallback failed: {e}")
-        return _build_basic_current_status(end_reports, student)
+def _fallback_current_status_analysis(end_reports, student):
+    """Fallback current status analysis when API fails."""
+    return _build_basic_current_status(end_reports, student)
+
 
 
 def _build_basic_current_status(end_reports, student):
@@ -1489,60 +1426,6 @@ NOW ANALYZE THIS STUDENT'S BASELINE:
     prompt += f"\nDescribe {student_name}'s initial baseline condition based on the early session notes above. Only describe what the notes say - do not invent details:\n"
     
     return prompt
-
-
-def _generate_enhanced_current_status_llama(client, end_reports, student, payload):
-    """Generate current status using Llama with few-shot examples."""
-    student_name = getattr(student, 'name', 'Student')
-    
-    prompt = """You are a clinical report summarization assistant.
-
-Your role is to describe the child's current abilities and status based on recent sessions.
-
-Rules:
-- Do NOT invent new section titles.
-- Do NOT rename or merge section titles.
-- Use ONLY the section titles exactly as they appear in the input reports.
-- Maintain professional, therapist-friendly language.
-- Describe current abilities and functioning level.
-- Do not include dates, scores, or session-by-session repetition.
-
-EXAMPLE 1:
-Input: Michael, recent sessions show confident speaking, leads discussions, clear articulation
-Output: Michael now demonstrates confident verbal communication. He initiates conversations independently and actively participates in group discussions. Articulation is clear and consistent across all previously targeted sounds. He requires minimal prompting to elaborate on responses and maintains topic relevance throughout conversations.
-
-EXAMPLE 2:
-Input: Emma, recent sessions show independent cutting, neat handwriting, proper pencil grip
-Output: Emma currently exhibits age-appropriate fine motor skills. She completes cutting tasks independently with good precision along both straight and curved lines. Pencil grip is consistently appropriate without reminders. Handwriting is legible and properly sized. She demonstrates the hand strength and coordination needed for classroom activities.
-
-NOW ANALYZE THIS STUDENT'S CURRENT STATUS:
-"""
-    
-    prompt += f"Student Name: {student_name}\n"
-    prompt += f"Analysis Period: {len(end_reports)} most recent sessions\n\n"
-    
-    prompt += "Recent Session Notes (current status data):\n"
-    for report in end_reports:
-        if report.progress_notes:
-            prompt += f"- {report.progress_notes[:200]}\n"
-        goals_text = _goals_to_readable_text(report.goals_achieved, 200)
-        if goals_text:
-            prompt += f"  Observations: {goals_text}\n"
-    
-    prompt += f"\nDescribe {student_name}'s current abilities and functioning level based on the notes above. Only describe what the notes say - do not invent details:\n"
-    
-    try:
-        result = _run_model_completion(
-            client=client,
-            prompt=prompt,
-            model=payload.model or "meta-llama/Llama-3.3-70B-Instruct",
-            max_tokens=350,
-            temperature=0.3
-        )
-        return _extract_generated_text(result)
-    except Exception as e:
-        logging.warning(f"Llama current status failed: {e}, using fallback")
-        return _build_basic_current_status(end_reports, student)
 
 
 def _build_recommendations_prompt_with_fewshot(reports, metrics, student):
