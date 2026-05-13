@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { jsPDF } from "jspdf";
 import { useParams } from "react-router-dom";
 import axios from "axios";
@@ -718,6 +718,8 @@ const StudentPage = () => {
     },
   });
   const [savingIep, setSavingIep] = useState(false);
+
+  
 
   // Handle sending AI summary to parent
   const handleSendToParent = async () => {
@@ -5326,10 +5328,11 @@ const isPhaseUnlocked = (table, targetPhase) => {
                 </div>
               </div>
             </div>
-                    ) : activeTab === "student-details" ? (
+          ) : activeTab === "student-details" ? (
             <div className="max-w-6xl mx-auto p-6">
+            <div className="mb-6 pb-4 border-b border-[#E38B52]/20 flex items-center justify-between">
               {/* Main Header */}
-              <h2 className="text-2xl font-bold text-[#170F49] mb-6 pb-4 border-b border-[#E38B52]/20 flex items-center">
+              <h2 className="text-2xl font-bold text-[#170F49] flex items-center">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   className="h-6 w-6 mr-2 text-[#E38B52]"
@@ -5348,7 +5351,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
               </h2>
           
               {/* Edit Button */}
-              <div className="mb-6 flex justify-end">
+              
                 {!editMode ? (
                   <button
                     onClick={handleEditStart}
@@ -6119,362 +6122,170 @@ const isPhaseUnlocked = (table, targetPhase) => {
               </div>
             </div>
           ) : activeTab === "iep" ? (
+                        
             <div className="max-w-6xl mx-auto p-6">
-              {/* Header with PDF Download Button */}
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  {student && (
-                    <div className="bg-white/70 rounded-xl px-4 py-3 border border-[#E38B52]/20">
-                      <p className="text-sm text-[#170F49]">
-                        IEP Report for:{" "}
-                        <span className="font-semibold">{student.name}</span>
-                        {student.studentId && (
-                          <span className="text-xs text-[#6F6C90] ml-2">
-                            (ID: {student.studentId})
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={downloadIepAsPDF}
-                  disabled={!iepData.selectedMonth}
-                  className="px-6 py-3 bg-gradient-to-r from-[#E38B52] to-[#F5A572] text-white rounded-lg hover:from-[#C8742F] hover:to-[#E38B52] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
+              <h2 className="text-2xl font-bold text-[#170F49] mb-6 pb-4 border-b border-[#E38B52]/20 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-[#E38B52]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v8m0-8l-3 3m3-3l3 3M4 6h16" />
+                </svg>
+                Individual Education Program
+              </h2>
+            
+              <div className="mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                <h3 className="text-lg font-semibold text-[#170F49] mb-4 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#E38B52]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  Download PDF
-                </button>
-              </div>
-
-              {/* Main Content */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-8">
-                {/* Trimester Report Header */}
-                <div className="text-center mb-8">
-                  <h1 className="text-3xl font-bold text-[#170F49] mb-4">
-                    TRIMESTER REPORT
-                  </h1>
-                  <h2 className="text-xl font-semibold text-[#6F6C90] mb-6">
-                    Individual Education Program (IEP)
-                  </h2>
-
-                  {/* Month Selection */}
-                  <div className="flex justify-center">
-                    <div className="w-64">
-                      <label className="block text-sm font-medium text-[#170F49] mb-2">
-                        Select Month
-                      </label>
+                  Trimester Report of: <span className="font-semibold ml-1">{student?.name}</span>
+                </h3>
+            
+                <div className="flex flex-col md:flex-row gap-6 items-end">
+                  <div className="flex items-center gap-3">
+                    <label className="block text-sm font-semibold text-[#170F49] whitespace-nowrap">Select Month</label>
+                    <div className="relative w-40 group">
+                      <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-[#E38B52]/40 to-[#F5A572]/40 blur-lg opacity-60 transition-opacity duration-300" />
                       <select
                         value={iepData.selectedMonth}
-                        onChange={(e) =>
-                          handleIepInputChange("selectedMonth", e.target.value)
-                        }
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent bg-white shadow-sm"
+                        onChange={(e) => handleIepInputChange("selectedMonth", e.target.value)}
+                        className="relative w-full px-3 py-1.5 rounded-xl border border-[#E38B52]/25 bg-white/90 text-[#170F49] font-medium shadow-sm transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-[#E38B52]/20 focus:border-[#E38B52]"
                       >
                         <option value="">Choose a month</option>
-                        <option value="January">January</option>
-                        <option value="February">February</option>
-                        <option value="March">March</option>
-                        <option value="April">April</option>
-                        <option value="May">May</option>
-                        <option value="June">June</option>
-                        <option value="July">July</option>
-                        <option value="August">August</option>
-                        <option value="September">September</option>
-                        <option value="October">October</option>
-                        <option value="November">November</option>
-                        <option value="December">December</option>
+                        {["January","February","March","April","May","June","July","August","September","October","November","December"].map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
-                </div>
-
-                {/* Dynamic Table */}
-                <div className="mb-8">
-                  <div className="flex justify-between items-center mb-4">
+            
+                  <div className="flex gap-3">
                     <button
-                      onClick={addTableRow}
-                      className="px-4 py-2 bg-[#E38B52] text-white rounded-lg hover:bg-[#C8742F] transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg"
+                      onClick={downloadIepAsPDF}
+                      disabled={!iepData.selectedMonth}
+                      className="px-6 py-2.5 bg-white text-[#E38B52] border border-[#E38B52] rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                        />
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m7-7H5" />
                       </svg>
-                      Add Row
+                      Download PDF
                     </button>
                   </div>
-
-                  <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-                    <table className="w-full">
-                      <thead className="bg-gradient-to-r from-[#E38B52] to-[#F5A572]">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-sm font-semibold text-white w-1/3">
-                            ADL SKILLS
-                          </th>
-                          <th className="px-6 py-4 text-left text-sm font-semibold text-white w-1/3">
-                            ACADEMIC
-                          </th>
-                          <th className="px-6 py-4 text-left text-sm font-semibold text-white w-1/3">
-                            BEHAVIOURAL SKILLS
-                          </th>
-                          <th className="px-6 py-4 text-center text-sm font-semibold text-white w-16">
-                            Action
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {iepData.tableRows.map((row, index) => (
-                          <tr
-                            key={row.id}
-                            className={
-                              index % 2 === 0 ? "bg-white" : "bg-gray-50"
-                            }
-                          >
-                            <td className="px-6 py-4">
-                              <textarea
-                                value={row.adlSkills}
-                                onChange={(e) =>
-                                  handleTableRowChange(
-                                    row.id,
-                                    "adlSkills",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="Enter ADL skills..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
-                                rows={3}
-                              />
-                            </td>
-                            <td className="px-6 py-4">
-                              <textarea
-                                value={row.academic}
-                                onChange={(e) =>
-                                  handleTableRowChange(
-                                    row.id,
-                                    "academic",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="Enter academic skills..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
-                                rows={3}
-                              />
-                            </td>
-                            <td className="px-6 py-4">
-                              <textarea
-                                value={row.behaviouralSkills}
-                                onChange={(e) =>
-                                  handleTableRowChange(
-                                    row.id,
-                                    "behaviouralSkills",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder="Enter behavioural skills..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
-                                rows={3}
-                              />
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              {iepData.tableRows.length > 1 && (
-                                <button
-                                  onClick={() => removeTableRow(row.id)}
-                                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200"
-                                  title="Remove row"
-                                >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="h-5 w-5"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                    />
-                                  </svg>
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
-
-                {/* IEP and Remarks Section */}
-                <div className="space-y-6 mb-8">
-                  {/* IEP of the Student */}
+            
+                <p className="mt-3 text-xs text-[#6F6C90]">Select the month and use the fields below to prepare the IEP.</p>
+              </div>
+            
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-8">
+                {/* Table controls */}
+                <div className="flex justify-between items-center mb-4">
+                  <button
+                    onClick={addTableRow}
+                    className="px-4 py-2 bg-[#E38B52] text-white rounded-lg hover:bg-[#C8742F] transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Add Row
+                  </button>
+                </div>
+            
+                <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+                  <table className="w-full">
+                    <thead className="bg-gradient-to-r from-[#E38B52] to-[#F5A572]">
+                      <tr>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">ADL SKILLS</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">ACADEMIC</th>
+                        <th className="px-6 py-4 text-left text-sm font-semibold text-white">BEHAVIOURAL SKILLS</th>
+                        <th className="px-6 py-4 text-center text-sm font-semibold text-white w-16">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {iepData.tableRows.map((row, index) => (
+                        <tr key={row.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-6 py-4">
+                            <textarea
+                              value={row.adlSkills}
+                              onChange={(e) => handleTableRowChange(row.id, "adlSkills", e.target.value)}
+                              placeholder="Enter ADL skills..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                              rows={3}
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <textarea
+                              value={row.academic}
+                              onChange={(e) => handleTableRowChange(row.id, "academic", e.target.value)}
+                              placeholder="Enter academic skills..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                              rows={3}
+                            />
+                          </td>
+                          <td className="px-6 py-4">
+                            <textarea
+                              value={row.behaviouralSkills}
+                              onChange={(e) => handleTableRowChange(row.id, "behaviouralSkills", e.target.value)}
+                              placeholder="Enter behavioural skills..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                              rows={3}
+                            />
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {iepData.tableRows.length > 1 && (
+                              <button onClick={() => removeTableRow(row.id)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200" title="Remove row">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6" />
+                                </svg>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+            
+                <div className="space-y-6 mt-6">
                   <div>
-                    <label className="block text-lg font-semibold text-[#170F49] mb-3">
-                      IEP OF THE STUDENT:
-                    </label>
+                    <label className="block text-lg font-semibold text-[#170F49] mb-3">IEP OF THE STUDENT:</label>
                     <textarea
                       value={iepData.iepStudent}
-                      onChange={(e) =>
-                        handleIepInputChange("iepStudent", e.target.value)
-                      }
+                      onChange={(e) => handleIepInputChange("iepStudent", e.target.value)}
                       placeholder="Enter the Individual Education Program details for the student..."
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none shadow-sm"
                       rows={6}
                     />
                   </div>
-
-                  {/* Remarks */}
+            
                   <div>
-                    <label className="block text-lg font-semibold text-[#170F49] mb-3">
-                      Remarks:
-                    </label>
+                    <label className="block text-lg font-semibold text-[#170F49] mb-3">Remarks:</label>
                     <textarea
                       value={iepData.remarks}
-                      onChange={(e) =>
-                        handleIepInputChange("remarks", e.target.value)
-                      }
+                      onChange={(e) => handleIepInputChange("remarks", e.target.value)}
                       placeholder="Enter any additional remarks or observations..."
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none shadow-sm"
                       rows={4}
                     />
                   </div>
                 </div>
-
-                {/* Signature Fields */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-[#170F49] mb-4">
-                    Signatures
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium text-[#6F6C90] mb-2">
-                        Principal
-                      </label>
-                      <input
-                        type="text"
-                        value={iepData.signatures.principal}
-                        onChange={(e) =>
-                          handleSignatureChange("principal", e.target.value)
-                        }
-                        placeholder="Principal's signature/name"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent shadow-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#6F6C90] mb-2">
-                        Teacher
-                      </label>
-                      <input
-                        type="text"
-                        value={iepData.signatures.teacher}
-                        onChange={(e) =>
-                          handleSignatureChange("teacher", e.target.value)
-                        }
-                        placeholder="Teacher's signature/name"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent shadow-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#6F6C90] mb-2">
-                        Parent/Guardian
-                      </label>
-                      <input
-                        type="text"
-                        value={iepData.signatures.parent}
-                        onChange={(e) =>
-                          handleSignatureChange("parent", e.target.value)
-                        }
-                        placeholder="Parent's signature/name"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent shadow-sm"
-                      />
-                    </div>
+            
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-[#6F6C90] mb-2">Principal</label>
+                    <input type="text" value={iepData.signatures.principal} onChange={(e) => handleSignatureChange("principal", e.target.value)} placeholder="Principal's signature/name" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent shadow-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6F6C90] mb-2">Teacher</label>
+                    <input type="text" value={iepData.signatures.teacher} onChange={(e) => handleSignatureChange("teacher", e.target.value)} placeholder="Teacher's signature/name" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent shadow-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#6F6C90] mb-2">Parent/Guardian</label>
+                    <input type="text" value={iepData.signatures.parent} onChange={(e) => handleSignatureChange("parent", e.target.value)} placeholder="Parent's signature/name" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent shadow-sm" />
                   </div>
                 </div>
-
-                {/* Save Button */}
-                <div className="text-center">
-                  <button
-                    onClick={saveIepData}
-                    disabled={savingIep}
-                    className="px-8 py-3 bg-gradient-to-r from-[#E38B52] to-[#F5A572] text-white rounded-lg hover:from-[#C8742F] hover:to-[#E38B52] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2 mx-auto"
-                  >
-                    {savingIep ? (
-                      <>
-                        <svg
-                          className="animate-spin h-5 w-5"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        <span>Saving...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-3m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
-                          />
-                        </svg>
-                        <span>Save IEP Data</span>
-                      </>
-                    )}
+            
+                <div className="text-center mt-8">
+                  <button onClick={saveIepData} disabled={savingIep} className="px-8 py-3 bg-gradient-to-r from-[#E38B52] to-[#F5A572] text-white rounded-lg hover:from-[#C8742F] hover:to-[#E38B52] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2 mx-auto">
+                    {savingIep ? <span>Saving…</span> : <span>Save IEP Data</span>}
                   </button>
-                      {aiSummarizing && (
-                        <button
-                          onClick={handleStopAISummarize}
-                          className="px-6 py-3 rounded-2xl border-2 border-red-400 text-red-700 bg-red-50 hover:bg-red-100 active:scale-95 transition-all duration-200 font-semibold"
-                          title="Stop streaming AI summary"
-                        >
-                          Stop
-                        </button>
-                      )}
                 </div>
               </div>
             </div>
@@ -7749,7 +7560,25 @@ const isPhaseUnlocked = (table, targetPhase) => {
               
             </div>          
           ) : (
-            <div className="flex gap-6 items-start justify-center relative max-w-[1600px] mx-auto">
+            <div className="max-w-6xl mx-auto p-6">
+              <h2 className="text-2xl font-bold text-[#170F49] mb-6 pb-4 border-b border-[#E38B52]/20 flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 mr-2 text-[#E38B52]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-6 0h6"
+                  />
+                </svg>
+                Case Record
+              </h2>
+              <div className="flex gap-6 items-start">
               {/* Left Sidebar Navigation */}
               <aside className="w-64 flex-shrink-0 sticky top-5 self-start">
                 <div className="bg-white/30 backdrop-blur-xl rounded-3xl shadow-xl p-6 border border-white/20 w-64 z-30 max-h-[calc(100vh-40px)] overflow-y-auto">
@@ -8005,7 +7834,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
               </aside>
 
               {/* Right Content Area */}
-              <div className="flex-1 max-w-[1100px]">
+              <div className="flex-1 min-w-0">
                 {/* Case Record Completion Progress Bar - always visible */}
                 <div className="mb-8 bg-white/50 rounded-2xl p-6 shadow-lg border border-white/30">
                   <div className="flex items-center justify-between mb-2">
@@ -8943,7 +8772,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
 
                     {/* Horizontal Navigation for Subsections */}
                     <div className="mb-8 overflow-x-auto">
-                      <div className="flex gap-2 min-w-max pb-2">
+                      <div className="flex gap-1 min-w-max pb-2">
                         {[
                           { id: "self-help", label: "Self Help" },
                           { id: "motor", label: "Motor" },
@@ -9224,17 +9053,14 @@ const isPhaseUnlocked = (table, targetPhase) => {
                               <input
                                 type="text"
                                 name="assessment.motor.gross_motor"
-                                value={
-                                  editData?.assessment?.motor?.gross_motor || ""
-                                }
+                                value={editData?.assessment?.motor?.gross_motor || ""}
                                 onChange={handleEditChange}
                                 placeholder="Describe capabilities in large movements, balance, and coordination"
                                 className="w-full px-4 py-3 rounded-xl border bg-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all duration-300"
                               />
                             ) : (
                               <p className="text-[#170F49] font-medium">
-                                {student?.assessment?.motor?.gross_motor ||
-                                  "N/A"}
+                                {student?.assessment?.motor?.gross_motor || "N/A"}
                               </p>
                             )}
                           </div>
@@ -9246,28 +9072,25 @@ const isPhaseUnlocked = (table, targetPhase) => {
                               <input
                                 type="text"
                                 name="assessment.motor.fine_motor"
-                                value={
-                                  editData?.assessment?.motor?.fine_motor || ""
-                                }
+                                value={editData?.assessment?.motor?.fine_motor || ""}
                                 onChange={handleEditChange}
                                 placeholder="Describe capabilities in small, precise movements"
                                 className="w-full px-4 py-3 rounded-xl border bg-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all duration-300"
                               />
                             ) : (
                               <p className="text-[#170F49] font-medium">
-                                {student?.assessment?.motor?.fine_motor ||
-                                  "N/A"}
+                                {student?.assessment?.motor?.fine_motor || "N/A"}
                               </p>
                             )}
                           </div>
                         </div>
                       </div>
                     )}
-
+                    
                     {/* Sensory */}
                     {activeEducationSubsection === "sensory" && (
                       <div className="bg-white/30 backdrop-blur-xl rounded-2xl p-6 space-y-8 mb-8">
-                        <h3 className="text-lg font-semibold text-[#170F49] pb-2 border-b border-[#6366f1]/10">
+                        <h3 className="text-lg font-semibold text-[#170F49] pb-2 border-b border-[#E38B52]/10">
                           Sensory
                         </h3>
                         <div className="bg-white rounded-xl p-6 shadow-lg">
@@ -10250,6 +10073,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             </div>
           )}
