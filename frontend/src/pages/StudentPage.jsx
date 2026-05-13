@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { jsPDF } from "jspdf";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import { formatAadhaar } from "../utils/validation";
+import schoolLogo from "../images/logo.png"
 
 // Add styles for input-edit class
 const inputEditStyles = `
@@ -685,11 +686,15 @@ const StudentPage = () => {
   const aiSummaryAbortControllerRef = useRef(null);
   const [collapsedSummarySections, setCollapsedSummarySections] = useState({});
 
-  // IEP OCR state
+  // Special Ed
   const fileInputRef = useRef(null);
+  const [phaseSavedStatus, setPhaseSavedStatus] = useState({}); // Track which phases are saved per table
   const [savedTables, setSavedTables] = useState([]);  
+  const [unsavedTableIndex, setUnsavedTableIndex] = useState(null); // Track which table has unsaved edits
   const [reportDate, setReportDate] = useState("");
   const [showTableDetails, setShowTableDetails] = useState({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePendingIndex, setDeletePendingIndex] = useState(null);
   const [tableSavedStatus, setTableSavedStatus] = useState({});
 
   // Translation state
@@ -1098,7 +1103,7 @@ const StudentPage = () => {
       if (!line) return "";
 
       if (/progress summary/i.test(line)) {
-        return line.replace(" - Progress Summary", " – Progress Summary");
+        return line.replace(" - Progress Summary", " � Progress Summary");
       }
 
       if (line.startsWith("**") && line.endsWith("**")) {
@@ -1121,7 +1126,7 @@ const StudentPage = () => {
         if (!/[.!?]$/.test(line)) {
           line += ".";
         }
-        return `• ${line}`;
+        return `� ${line}`;
       }
 
       return line;
@@ -1172,7 +1177,7 @@ const StudentPage = () => {
 
       if (isMainTitle) {
         const titleWithoutSuffix = cleanedHeading
-          .replace(/\s*[–-]\s*progress summary\s*$/i, "")
+          .replace(/\s*[�-]\s*progress summary\s*$/i, "")
           .replace(/\s*progress summary\s*$/i, "")
           .trim();
         summaryTitle = titleWithoutSuffix || summaryTitle;
@@ -1233,8 +1238,8 @@ const StudentPage = () => {
                       return <div key={`${sectionKey}-spacer-${lineIndex}`} className="h-2" />;
                     }
 
-                    const isBullet = /^[-•*]\s+/.test(line);
-                    const bulletText = isBullet ? line.replace(/^[-•*]\s+/, "") : line;
+                    const isBullet = /^[-�*]\s+/.test(line);
+                    const bulletText = isBullet ? line.replace(/^[-�*]\s+/, "") : line;
                     const isFinalVisibleLine =
                       isStreaming &&
                       sectionIndex === sections.length - 1 &&
@@ -1250,7 +1255,7 @@ const StudentPage = () => {
                         }`}
                       >
                         <p className="text-sm sm:text-[15px] text-gray-800 leading-7">
-                          {isBullet && <span className="text-[#E38B52] font-bold mr-2">•</span>}
+                          {isBullet && <span className="text-[#E38B52] font-bold mr-2">�</span>}
                           {bulletText}
                           {isFinalVisibleLine && (
                             <span className="inline-block ml-1 text-[#E38B52] font-semibold animate-pulse">
@@ -2431,10 +2436,9 @@ const StudentPage = () => {
       if (Array.isArray(parsed)) {
         const normalized = parsed.map((t) => ({
           ...t,
-          // default: tables from previous sessions are read-only
           isEditable: t.isEditable === true,
-          // Set to the highest filled phase instead of just using saved value
-          assessment_phase: getHighestFilledPhase(t),
+          // keep saved assessment_phase if present, otherwise compute highest filled
+          assessment_phase: t.assessment_phase || getHighestFilledPhase(t),
           last_edited_at: t.last_edited_at || null,
         }));
         setSavedTables(normalized);
@@ -2453,6 +2457,10 @@ const StudentPage = () => {
 
   // manual table
   const handleAddManualTable = () => {
+    if (unsavedTableIndex !== null) {
+    showToast("Save the current table before creating a new one", "warning");
+    return;
+  }
     if (!reportDate) {
       alert("Please select a report date before creating the table.");
       return;
@@ -2466,7 +2474,7 @@ const StudentPage = () => {
       "Assessment Date",
       "Skill Area",
     ];
-    const sessionHeaders = Array.from({ length: 20 }, (_, i) => `Session ${i + 1}`);
+    const sessionHeaders = Array.from({ length: 20 }, (_, i) => String(i + 1));
     const summaryHeaders = ["Total A", "Total B", "I Qr", "II Qr", "III Qr", "IV Qr"];
     const headers = [...baseMetaHeaders, ...sessionHeaders, ...summaryHeaders];
   
@@ -2526,10 +2534,13 @@ const StudentPage = () => {
       }));
       setQuestionsOpenByTable((prev) => ({ ...(prev || {}), [newIndex]: false }));
       setActiveSkillByTable((prev) => ({ ...(prev || {}), [newIndex]: null }));
-  
+      setUnsavedTableIndex(newIndex);
       return updated;
     });
   };
+
+
+  
   // Helper function to format dates in a human-friendly way (no seconds)
   const formatDate = (dateString) => {
     if (!dateString) return null;
@@ -2549,21 +2560,49 @@ const StudentPage = () => {
       })
     );
   };
+// Check if a phase is unlocked based on previous phases being saved
+const isPhaseUnlocked = (table, targetPhase) => {
+  if (targetPhase === "1st assmt") return true; // Always unlocked
+  
+  const tableKey = savedTables.indexOf(table);
+  const phaseStatus = phaseSavedStatus[tableKey] || {};
+  
+  const phaseOrder = ["1st assmt", "1st Qtr", "2nd Qtr", "3rd Qtr", "4th Qtr"];
+  const targetIdx = phaseOrder.indexOf(targetPhase);
+  const prevPhase = phaseOrder[targetIdx - 1];
+  
+  return phaseStatus[prevPhase] === true; // Only unlocked if previous is saved
+};
 
   const handleSetTableEditable = (targetTable, editable) => {
+    if (editable) {
+      // Entering edit mode - mark as unsaved
+      const tableIndex = savedTables.indexOf(targetTable);
+      setUnsavedTableIndex(tableIndex);
+    } else {
+      // Exiting edit mode (saving) - clear unsaved flag
+      setUnsavedTableIndex(null);
+      
+      setPhaseSavedStatus((prev) => ({
+        ...prev,
+        [savedTables.indexOf(targetTable)]: {
+          ...(prev[savedTables.indexOf(targetTable)] || {}),
+          [targetTable.assessment_phase || "1st assmt"]: true,
+        },
+      }));
+    }
+  
     setSavedTables((prev) => {
       const nowIso = !editable ? new Date().toISOString() : null;
-
       const updated = prev.map((t) => {
         if (t !== targetTable) return t;
         return {
           ...t,
           isEditable: editable,
-          // only stamp when saving (editable=false)
           last_edited_at: !editable ? nowIso : t.last_edited_at || nowIso,
         };
       });
-
+  
       try {
         if (typeof window !== "undefined" && id) {
           const key = `special-education-tables:${id}`;
@@ -2572,7 +2611,7 @@ const StudentPage = () => {
       } catch (err) {
         console.warn("Failed to persist table edit state", err);
       }
-
+  
       return updated;
     });
   };
@@ -2601,216 +2640,572 @@ const StudentPage = () => {
     });    
   };
 
-  const handleExportToCSV = (table, index) => {
-    if (!table || !table.rows || table.rows.length === 0) return;
-
-    // Get student name from first row (if exists) before filtering
-    const studentName =
-      table.rows[0] && table.rows[0]["Student Name"]
-        ? table.rows[0]["Student Name"]
-        : "";
-
-    // Filter out Student Name and Register Number columns from headers
-    const allHeaders = table.headers || Object.keys(table.rows[0]);
-    const headers = allHeaders
-      .filter(
-        (h) =>
-          h !== "Student Name" &&
-          h !== "Register Number" &&
-          h !== "Assessment Date",
-      )
-      .map((h) => h.replace(/^Session\s+/i, ""));
-
-    // Add student name as a comment line at the top if it exists
-    const csvRows = [];
-    if (studentName) {
-      csvRows.push(`# Student: ${studentName}`);
-    }
-    csvRows.push(headers.join(","));
-
-    table.rows.forEach((row) => {
-      const values = allHeaders
-        .filter(
-          (h) =>
-            h !== "Student Name" &&
-            h !== "Register Number" &&
-            h !== "Assessment Date",
-        )
-        .map((header) => {
-          const value = row[header] || "";
-          // Escape quotes and wrap in quotes if contains comma
-          return value.includes(",") ? `"${value.replace(/"/g, '""')}"` : value;
-        });
-      csvRows.push(values.join(","));
+    const buildEditedExportRows = (table) => {
+    const rows = (table?.rows || []).map((row) => ({ ...row }));
+    const snapshots = table?.quarterSnapshots || {};
+  
+    Object.entries(snapshots).forEach(([phase, phaseData]) => {
+      Object.entries(phaseData || {}).forEach(([cellKey, value]) => {
+        const [rowIndexStr, colName] = String(cellKey).split(":");
+        const rowIndex = Number(rowIndexStr);
+        if (rows[rowIndex]) {
+          rows[rowIndex][colName] = value;
+        }
+      });
     });
-
-    const csvContent = csvRows.join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `table_${index + 1}_${new Date().getTime()}.csv`,
-    );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    showToast("Table exported to CSV successfully!", "success");
+  
+    return rows;
   };
 
-  const handleExportToPDF = (table, index) => {
-    if (!table || !table.rows || table.rows.length === 0) return;
+    const loadPdfLogo = async (logoUrl) => {
+    try {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        };
+        img.onerror = reject;
+        img.src = logoUrl;
+      });
+    } catch (error) {
+      console.warn("Failed to load logo for PDF:", error);
+      return null;
+    }
+  };
 
+    const getPhaseCounts = (row, rowIdx, targetPhase, sessionHeaders, snapshots) => {
+      let a = 0;
+      let b = 0;
+    
+      sessionHeaders.forEach((colName) => {
+        // try numeric field first, then "Session N" variant
+        const raw = row[colName] ?? row[`Session ${colName}`] ?? "";
+        const baseVal = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+    
+        // compute effective value from snapshots
+        const cellKey = `${rowIdx}:${colName}`;
+        const effective = getEffectiveValueForPhase(baseVal, cellKey, targetPhase, snapshots);
+    
+        if (effective === "A") a++;
+        else if (effective === "B") b++;
+      });
+    
+      return { aCount: a, bCount: b };
+    };
+
+    // returns { effective, previous } where `previous` is the last different value before `effective`
+  function detectHistoricalChange(baseVal, cellKey, phase, snapshots = {}) {
+    const phases = SPECIAL_EDU_PHASE_ORDER; // ['1st Qtr','2nd Qtr','3rd Qtr','4th Qtr']
+    const idx = Math.max(0, phases.indexOf(phase));
+    let effective = baseVal;
+    let previous = null;
+  
+    for (let i = 0; i <= idx; i++) {
+      const p = phases[i];
+      const snap = snapshots[p];
+      if (snap && snap.hasOwnProperty(cellKey)) {
+        const v = snap[cellKey];
+        if (v !== effective) {
+          previous = effective;
+          effective = v;
+        }
+      }
+    }
+  
+    // If nothing in snapshots but effective differs from baseVal, mark previous as baseVal
+    if (previous === null && effective !== baseVal) previous = baseVal;
+  
+    return { effective, previous };
+  }
+
+  const handleExportToPDF = async (table, index) => {
+    if (!table || !table.rows || table.rows.length === 0) return;
+  
     try {
       const doc = new jsPDF({
         orientation: "landscape",
         unit: "mm",
         format: "a4",
       });
-
-      const allHeaders = table.headers || Object.keys(table.rows[0]);
-      const headers = allHeaders.filter(
+      const exportPhase = table.assessment_phase || getHighestFilledPhase(table);
+      const snapshots = table.quarterSnapshots || {};
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+  
+      const marginLeft = 6;
+      const marginRight = 6;
+      const marginTop = 6;
+      const marginBottom = 6;
+  
+      const studentName = table.rows?.[0]?.["Student Name"] || student?.name || "Unknown";
+      const phaseText = table.assessment_phase || "1st assmt";
+      const dateText = table.report_date || "N/A";
+      const phase = table.assessment_phase || "1st assmt";
+      
+  
+      const rawHeaders = table.headers || Object.keys(table.rows[0] || {});
+      const headers = rawHeaders.filter(
         (h) =>
           h !== "Student Name" &&
           h !== "Register Number" &&
           h !== "Assessment Date",
       );
-
+  
       const skillHeader =
         headers.find((h) => String(h).toLowerCase().includes("skill")) ||
         headers[0];
-      const sessionHeaders = headers.filter((h) =>
-        /^session\s+/i.test(String(h)),
+  
+      const sessionHeaders = Array.from({ length: 20 }, (_, i) =>
+        String(i + 1)
       );
-      const summaryHeaders = headers.filter(
-        (h) => h !== skillHeader && !/^session\s+/i.test(String(h)),
-      );
-
-      const orderedHeaders = [skillHeader, ...sessionHeaders, ...summaryHeaders];
-      const displayHeaders = [
-        skillHeader,
-        ...sessionHeaders.map((h) => String(h).replace(/^Session\s+/i, "")),
-        ...summaryHeaders,
-      ];
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const marginLeft = 8;
-      const marginRight = 8;
-      const marginTop = 10;
-      const marginBottom = 8;
-      const tableWidth = pageWidth - marginLeft - marginRight;
-
-      const colWidths = displayHeaders.map((_, idx) => {
-        if (idx === 0) return 48; // Skill Area
-        if (idx <= sessionHeaders.length) return 7.5; // Sessions 1..20
-        return 9; // Totals and quarter columns
+  
+      const totalAKey = headers.find((h) => String(h).trim() === "Total A");
+      const totalBKey = headers.find((h) => String(h).trim() === "Total B");
+      const quarterKeys = [
+        { key: headers.find((h) => String(h).trim() === "I Qr"), phase: "1st Qtr", label: "I Qr" },
+        { key: headers.find((h) => String(h).trim() === "II Qr"), phase: "2nd Qtr", label: "II Qr" },
+        { key: headers.find((h) => String(h).trim() === "III Qr"), phase: "3rd Qtr", label: "III Qr" },
+        { key: headers.find((h) => String(h).trim() === "IV Qr"), phase: "4th Qtr", label: "IV Qr" },
+      ].filter((item) => item.key);
+  
+      const visibleColumns = [];
+  
+      visibleColumns.push({
+        group: null,
+        header: skillHeader,
+        subLabel: null,
+        fieldName: skillHeader,
+        isSkill: true,
+        getValue: (row) => row[skillHeader],
       });
-
-      const baseWidth = colWidths.reduce((sum, w) => sum + w, 0);
-      const widthScale = tableWidth / baseWidth;
+  
+      sessionHeaders.forEach((h) => {
+        visibleColumns.push({
+          group: null,
+          header: h,
+          subLabel: null,
+          fieldName: h,
+          isSkill: false,
+          getValue: (row) => row[h],
+        });
+      });
+  
+      if (totalAKey) {
+        visibleColumns.push({
+          group: "1st Assmt",
+          header: "A",
+          subLabel: "A",
+          fieldName: totalAKey,
+          getValue: (row, rowIdx) =>
+            getPhaseCounts(row, rowIdx, "1st assmt", sessionHeaders, snapshots).aCount,
+        });
+      }
+  
+      if (totalBKey) {
+        visibleColumns.push({
+          group: "1st Assmt",
+          header: "B",
+          subLabel: "B",
+          fieldName: totalBKey,
+          getValue: (row, rowIdx) =>
+            getPhaseCounts(row, rowIdx, "1st assmt", sessionHeaders, snapshots).bCount,
+        });
+      }
+  
+      quarterKeys.forEach(({ key, phase: quarterPhase, label }) => {
+        visibleColumns.push({
+          group: label,
+          header: "A",
+          subLabel: "A",
+          fieldName: key,
+          getValue: (row, rowIdx) => {
+            const phaseSnapshot = snapshots[quarterPhase];
+            if (!phaseSnapshot || Object.keys(phaseSnapshot).length === 0) return "-";
+            return getPhaseCounts(row, rowIdx, quarterPhase, sessionHeaders, snapshots).aCount;
+          },
+        });
+  
+        visibleColumns.push({
+          group: label,
+          header: "B",
+          subLabel: "B",
+          fieldName: key,
+          getValue: (row, rowIdx) => {
+            const phaseSnapshot = snapshots[quarterPhase];
+            if (!phaseSnapshot || Object.keys(phaseSnapshot).length === 0) return "-";
+            return getPhaseCounts(row, rowIdx, quarterPhase, sessionHeaders, snapshots).bCount;
+          },
+        });
+      });
+  
+      const colWidths = visibleColumns.map((col, idx) => {
+        if (idx === 0) return 46;
+        if (
+          !col.group &&
+          (/^session\s*/i.test(String(col.fieldName)) || /^\d+$/.test(String(col.fieldName)))
+        )
+          return 6.0;
+        return 7.0;
+      });
+  
+      const tableWidth = pageWidth - marginLeft - marginRight;
+      const widthScale = tableWidth / colWidths.reduce((sum, w) => sum + w, 0);
       const scaledColWidths = colWidths.map((w) => w * widthScale);
-
-      const lineHeight = 3.1;
-      const cellPad = 1.0;
+  
+      const logoDataUrl = schoolLogo;
+  
       let y = marginTop;
-
-      const studentName =
-        table.rows[0]?.["Student Name"] || student?.name || "Unknown";
-      const phaseText = table.assessment_phase || "1st assmt";
-      const dateText = table.report_date || "N/A";
-
+  
+      const drawSchoolHeader = () => {
+        const logoW = 28;
+        const logoH = 28;
+        const logoX = marginLeft;
+        const logoY = y;
+      
+        try {
+          // use local import (schoolLogo) — avoids CORS
+          doc.addImage(schoolLogo, "PNG", logoX, logoY, logoW, logoH);
+        } catch (e) {
+          console.warn("Logo draw failed:", e);
+        }
+      
+        // center title, shifted down to align with logo
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.text(
+          "ST. MARTHA'S SPECIAL SCHOOL FOR THE MENTALLY CHALLENGED",
+          pageWidth / 2,
+          y + 8,
+          { align: "center" }
+        );
+      
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.text(
+          "Reg.No: SJD/4315/2024/RPWD2, Kalpana Road, Chittattumukku P.O. Menamkulam, Trivandrum - 695 301",
+          pageWidth / 2,
+          y + 12,
+          { align: "center" }
+        );
+        doc.text(
+          "Phone: 0471/2705 764 - 9388084403 Email: stmarthaspecialschool@gmail.com",
+          pageWidth / 2,
+          y + 16,
+          { align: "center" }
+        );
+      
+        y += Math.max(logoH, 20) + 2;
+        doc.setDrawColor(90);
+        doc.line(marginLeft, y, pageWidth - marginRight, y);
+        y += 6;
+      };
+  
       const drawMeta = () => {
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
+        doc.setFontSize(8.8);
         doc.text("Special Education Table", marginLeft, y);
-
+  
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        y += 5;
-        doc.text("Student: " + studentName, marginLeft, y);
-        doc.text("Phase: " + phaseText, pageWidth / 2 - 10, y);
-        doc.text("Date: " + dateText, pageWidth - marginRight - 45, y);
-        y += 4;
+        doc.setFontSize(6.8);
+        y += 3.6;
+        doc.text(`Student: ${studentName}`, marginLeft, y);
+        doc.text(`Phase: ${phaseText}`, pageWidth / 2 - 10, y);
+        doc.text(`Date: ${dateText}`, pageWidth - marginRight - 32, y);
+        y += 3.1;
+        doc.text(`Current edit phase: ${phase}`, marginLeft, y);
+        y += 3.4;
       };
-
-      const drawHeader = () => {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
-        const headerHeight = 7;
-        let x = marginLeft;
-        displayHeaders.forEach((header, idx) => {
-          doc.rect(x, y, scaledColWidths[idx], headerHeight);
+  
+      const drawCell = (x, yPos, width, height, text, style = {}) => {
+        const {
+          fillColor = [255, 255, 255],
+          textColor = [0, 0, 0],
+          bold = false,
+          align = "center",
+          fontSize = 5.8,
+        } = style;
+  
+        doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
+        doc.setDrawColor(120);
+        doc.rect(x, yPos, width, height, "FD");
+  
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+        doc.setFont("helvetica", bold ? "bold" : "normal");
+        doc.setFontSize(fontSize);
+  
+        const split = doc.splitTextToSize(String(text ?? ""), Math.max(1, width - 1.2));
+        const lines = Array.isArray(split) ? split : [String(split)];
+  
+        const startY = yPos + (height - (lines.length - 1) * 2.4) / 2 + 0.8;
+        lines.forEach((line, idx) => {
           doc.text(
-            String(header),
-            x + scaledColWidths[idx] / 2,
-            y + 4.5,
-            { align: "center" },
+            line,
+            align === "left" ? x + 0.6 : x + width / 2,
+            startY + idx * 2.4,
+            align === "left" ? {} : { align: "center" },
           );
-          x += scaledColWidths[idx];
         });
-        y += headerHeight;
       };
-
-      drawMeta();
-      drawHeader();
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(6.5);
-
-      table.rows.forEach((row) => {
-        const values = orderedHeaders.map((h) => String(row[h] ?? ""));
-        const wrapped = values.map((v, idx) =>
-          doc.splitTextToSize(v, Math.max(1, scaledColWidths[idx] - cellPad * 2)),
-        );
-
-        const maxLines = Math.max(
-          1,
-          ...wrapped.map((cellLines) => Math.max(1, cellLines.length)),
-        );
-        const rowHeight = Math.max(6, maxLines * lineHeight + cellPad * 2);
-
-        if (y + rowHeight > pageHeight - marginBottom) {
-          doc.addPage();
-          y = marginTop;
-          drawMeta();
-          drawHeader();
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(6.5);
-        }
-
+  
+      const drawGroupedHeader = () => {
+        const topRowHeight = 5.5;
+        const secondRowHeight = 4.2;
+  
         let x = marginLeft;
-        wrapped.forEach((cellLines, idx) => {
-          doc.rect(x, y, scaledColWidths[idx], rowHeight);
-          const linesToDraw = cellLines.length ? cellLines : [""];
-
-          if (idx === 0) {
-            doc.text(linesToDraw, x + cellPad, y + cellPad + lineHeight - 0.7);
+        let i = 0;
+  
+        while (i < visibleColumns.length) {
+          const col = visibleColumns[i];
+  
+          if (!col.group) {
+            const w = scaledColWidths[i];
+            doc.setFillColor(245, 245, 245);
+            doc.setDrawColor(120);
+            doc.rect(x, y, w, topRowHeight + secondRowHeight, "FD");
+  
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(6.4);
+            doc.setTextColor(55, 55, 55);
+            doc.text(String(col.header), x + w / 2, y + 5.2, { align: "center" });
+  
+            x += w;
+            i += 1;
+            continue;
+          }
+  
+          let span = 0;
+          while (
+            i + span < visibleColumns.length &&
+            visibleColumns[i + span].group === col.group
+          ) {
+            span += 1;
+          }
+  
+          const groupWidth = visibleColumns
+            .slice(i, i + span)
+            .reduce((sum, _, idx) => sum + scaledColWidths[i + idx], 0);
+  
+          doc.setFillColor(245, 245, 245);
+          doc.setDrawColor(120);
+          doc.rect(x, y, groupWidth, topRowHeight, "FD");
+  
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(6.4);
+          doc.setTextColor(55, 55, 55);
+          doc.text(String(col.group), x + groupWidth / 2, y + 3.6, { align: "center" });
+  
+          let innerX = x;
+          for (let j = 0; j < span; j += 1) {
+            const current = visibleColumns[i + j];
+            const w = scaledColWidths[i + j];
+  
+            doc.setFillColor(245, 245, 245);
+            doc.setDrawColor(120);
+            doc.rect(innerX, y + topRowHeight, w, secondRowHeight, "FD");
+  
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(6.0);
+            doc.text(String(current.subLabel || current.header), innerX + w / 2, y + topRowHeight + 2.8, {
+              align: "center",
+            });
+  
+            innerX += w;
+          }
+  
+          x += groupWidth;
+          i += span;
+        }
+  
+        y += topRowHeight + secondRowHeight;
+      };
+  
+      drawSchoolHeader();
+      drawMeta();
+      drawGroupedHeader();
+  
+      const rowFontSize = 5.6;
+      const rowHeight = 4.2;
+  
+      table.rows.forEach((row, rowIdx) => {
+      let x = marginLeft;
+        
+        visibleColumns.forEach((col, colIdx) => {
+          // compute the visible value (apply snapshots for quarter edits)
+          let value;
+          if (col.isSkill) {
+            value = String(row[col.fieldName] ?? "");
           } else {
-            const blockHeight = (linesToDraw.length - 1) * lineHeight;
-            const startY = y + (rowHeight - blockHeight) / 2 - 0.2;
-            linesToDraw.forEach((line, lineIdx) => {
-              doc.text(line, x + scaledColWidths[idx] / 2, startY + lineIdx * lineHeight, {
-                align: "center",
-              });
+            const field = col.fieldName;
+            const isSessionCol =
+              !col.group &&
+              (/^session\s*/i.test(String(field)) || /^\d+$/.test(String(field)));
+        
+            if (isSessionCol) {
+              const raw = row[field];
+              const baseVal = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+              const cellKey = `${rowIdx}:${field}`;
+              value = getEffectiveValueForPhase(baseVal, cellKey, phase, snapshots) || "";
+            } else {
+              value = String(col.getValue(row, rowIdx) ?? "");
+            }
+          }
+        
+          const isSession =
+            !col.group &&
+            (/^session\s*/i.test(String(col.fieldName)) || /^\d+$/.test(String(col.fieldName)));
+          const isGroupCell = !!col.group;
+        
+          if (col.isSkill) {
+            drawCell(x, y, scaledColWidths[colIdx], rowHeight, value, {
+              fillColor: [246, 246, 246],
+              textColor: [30, 30, 30],
+              bold: true,
+              align: "left",
+              fontSize: rowFontSize,
+            });
+          } else if (isSession) {
+            const field = col.fieldName; // numeric string like "1","2",...
+            const raw = row[field] ?? row[`Session ${field}`] ?? "";
+            const baseVal = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+          
+            const keyVariants = [
+              `${rowIdx}:${field}`,
+              `${rowIdx}:Session ${field}`,
+              `${rowIdx}:${String(field).trim()}`,
+            ];
+          
+            // walk phases to detect which quarter made the change
+            const phases = SPECIAL_EDU_PHASE_ORDER;
+            const idx = Math.max(0, phases.indexOf(exportPhase));
+            let effective = baseVal;
+            let changePhase = null; // which quarter caused the change
+          
+            for (let i = 0; i <= idx; i++) {
+              const p = phases[i];
+              const snap = snapshots[p] || {};
+              for (const kv of keyVariants) {
+                if (Object.prototype.hasOwnProperty.call(snap, kv)) {
+                  const v = (snap[kv] ?? "").toString().trim().toUpperCase();
+                  if (v && v !== effective) {
+                    changePhase = p; // track which phase made the change
+                    effective = v;
+                  } else if (v && !effective) {
+                    effective = v;
+                    changePhase = p;
+                  }
+                  break;
+                }
+              }
+            }
+          
+            // For 1st assmt: display A (no lines)
+            // For quarters: display B but with pattern based on changePhase
+            const displayVal =
+              exportPhase === "1st assmt" && effective === "A"
+                ? "A"
+                : baseVal; // display base value (B) for quarters
+          
+            const cellVal = String(displayVal || "").trim().toUpperCase();
+          
+            drawCell(x, y, scaledColWidths[colIdx], rowHeight, cellVal, {
+              fillColor:
+                cellVal === "A"
+                  ? [229, 243, 255]
+                  : cellVal === "B"
+                  ? [255, 232, 232]
+                  : [255, 255, 255],
+              textColor:
+                cellVal === "A"
+                  ? [31, 78, 121]
+                  : cellVal === "B"
+                  ? [168, 28, 28]
+                  : [0, 0, 0],
+              bold: true,
+              align: "center",
+              fontSize: rowFontSize,
+            });
+          
+            // draw line pattern based on which quarter made the change (only if B was edited to A)
+            if (baseVal === "B" && effective === "A" && changePhase) {
+              const pad = 0.8;
+              const inset = 1.5;
+              const startX = x + inset;
+              const endX = x + scaledColWidths[colIdx] - inset;
+              const startY = y + pad;
+              const endY = y + rowHeight - pad;
+              const gap = 1.5;
+          
+              doc.setDrawColor(31, 78, 121);
+              doc.setLineWidth(0.35);
+          
+              if (changePhase === "1st Qtr") {
+                // three horizontal lines
+                doc.line(startX, startY, endX, startY);
+                doc.line(startX, startY + gap, endX, startY + gap);
+                doc.line(startX, startY + gap * 2, endX, startY + gap * 2);
+              } else if (changePhase === "2nd Qtr") {
+                // three vertical lines
+                const mid = startX + (endX - startX) / 2;
+                doc.line(startX + 1, startY, startX + 1, endY);
+                doc.line(mid, startY, mid, endY);
+                doc.line(endX - 1, startY, endX - 1, endY);
+              } else if (changePhase === "3rd Qtr") {
+                // three horizontal + three vertical (cross-hatch)
+                const mid = startX + (endX - startX) / 2;
+                doc.line(startX, startY, endX, startY);
+                doc.line(startX, startY + gap, endX, startY + gap);
+                doc.line(startX, startY + gap * 2, endX, startY + gap * 2);
+                doc.line(startX + 1, startY, startX + 1, endY);
+                doc.line(mid, startY, mid, endY);
+                doc.line(endX - 1, startY, endX - 1, endY);
+              } else if (changePhase === "4th Qtr") {
+                // three diagonal lines (\)
+                const h = endY - startY;
+                const w = endX - startX;
+                // line 1: top-left to bottom-right
+                doc.line(startX, startY, startX + w / 2, startY + h);
+                // line 2: slightly offset
+                doc.line(startX + w / 4, startY, startX + w / 2 + w / 4, startY + h);
+                // line 3: another offset
+                doc.line(startX + w / 2, startY, endX, startY + h);
+              }
+            }
+          } else if (isGroupCell) {
+            const cellVal = String(value).trim();
+            drawCell(x, y, scaledColWidths[colIdx], rowHeight, cellVal, {
+              fillColor:
+                cellVal === "A"
+                  ? [229, 243, 255]
+                  : cellVal === "B"
+                  ? [255, 232, 232]
+                  : [255, 255, 255],
+              textColor:
+                cellVal === "A"
+                  ? [31, 78, 121]
+                  : cellVal === "B"
+                  ? [168, 28, 28]
+                  : [0, 0, 0],
+              bold: true,
+              align: "center",
+              fontSize: rowFontSize,
             });
           }
-
-          x += scaledColWidths[idx];
+        
+          x += scaledColWidths[colIdx];
         });
-
+  
         y += rowHeight;
       });
-
+  
       const safeName = String(studentName).replace(/[^a-zA-Z0-9_-]+/g, "_");
-      const filename =
-        "special_education_table_" + (index + 1) + "_" + safeName + ".pdf";
-      doc.save(filename);
-
+      doc.save(`special_education_table_${index + 1}_${safeName}.pdf`);
+  
       showToast("Table exported to PDF successfully!", "success");
     } catch (error) {
       console.error("Error exporting table to PDF:", error);
@@ -3593,7 +3988,13 @@ const StudentPage = () => {
 
             {/* Student Details Tab */}
             <button
-              onClick={() => setActiveTab("student-details")}
+              onClick={() => {
+                if (unsavedTableIndex !== null) {
+                  showToast("Save the current table before changing tabs", "warning");
+                  return;
+                }
+                setActiveTab("student-details");
+              }}
               className={`w-[180px] px-6 py-3 rounded-xl font-medium transition-all duration-300 relative z-10 text-center whitespace-nowrap ${
                 activeTab === "student-details"
                   ? "text-white"
@@ -3605,7 +4006,13 @@ const StudentPage = () => {
 
             {/* Case Record Tab */}
             <button
-              onClick={() => setActiveTab("case-record")}
+              onClick={() => {
+                if (unsavedTableIndex !== null) {
+                  showToast("Save the current table before changing tabs", "warning");
+                  return;
+                }
+                setActiveTab("case-record");
+              }}
               className={`w-[180px] px-6 py-3 rounded-xl font-medium transition-all duration-300 relative z-10 text-center whitespace-nowrap ${
                 activeTab === "case-record"
                   ? "text-white"
@@ -3617,7 +4024,13 @@ const StudentPage = () => {
 
             {/* Therapy Reports Tab */}
             <button
-              onClick={() => setActiveTab("therapy-reports")}
+              onClick={() => {
+                if (unsavedTableIndex !== null) {
+                  showToast("Save the current table before changing tabs", "warning");
+                  return;
+                }
+                setActiveTab("therapy-reports");
+              }}
               className={`w-[180px] px-6 py-3 rounded-xl font-medium transition-all duration-300 relative z-10 text-center whitespace-nowrap ${
                 activeTab === "therapy-reports"
                   ? "text-white"
@@ -3628,7 +4041,13 @@ const StudentPage = () => {
             </button>
             {/* IEP Tab */}
             <button
-              onClick={() => setActiveTab("iep")}
+              onClick={() => {
+                if (unsavedTableIndex !== null) {
+                  showToast("Save the current table before changing tabs", "warning");
+                  return;
+                }
+                setActiveTab("iep");
+              }}
               className={`w-[180px] px-6 py-3 rounded-xl font-medium transition-all duration-300 relative z-10 text-center whitespace-nowrap ${
                 activeTab === "iep"
                   ? "text-white"
@@ -3640,7 +4059,13 @@ const StudentPage = () => {
 
             {/* Special Education Tab */}
             <button
-              onClick={() => setActiveTab("special-education")}
+              onClick={() => {
+                if (unsavedTableIndex !== null) {
+                  showToast("Save the current table before changing tabs", "warning");
+                  return;
+                }
+                setActiveTab("special-education");
+              }}
               className={`w-[180px] px-6 py-3 rounded-xl font-medium transition-all duration-300 relative z-10 text-center whitespace-nowrap ${
                 activeTab === "special-education"
                   ? "text-white"
@@ -3651,6 +4076,7 @@ const StudentPage = () => {
             </button>
           </div>
         </div>
+        
 
         {/* Main content container */}
         <div className="relative bg-white/30 backdrop-blur-xl rounded-3xl shadow-xl p-8 md:p-12 border border-white/20">
@@ -4608,7 +5034,7 @@ const StudentPage = () => {
                           </div>
                           {aiAnalysis?.truncated && (
                             <div className="mt-3 text-xs text-orange-700 bg-orange-50 p-2 rounded border border-orange-200">
-                              âš ï¸ Analysis was truncated due to content length.
+                              ⚠️ Analysis was truncated due to content length.
                               Consider filtering by date range for more detailed
                               analysis.
                             </div>
@@ -6537,7 +6963,43 @@ const StudentPage = () => {
                   Select a date and click Create Table to add a new assessment.
                 </p>
               </div>
-
+              {showDeleteConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                  <div
+                    className="absolute inset-0 bg-black/40"
+                    onClick={() => { setShowDeleteConfirm(false); setDeletePendingIndex(null); }}
+                  />
+                  <div className="relative z-10 w-full max-w-md mx-4 bg-white rounded-lg shadow-lg">
+                    <div className="p-4 border-b">
+                      <h3 className="text-lg font-semibold text-[#170F49]">Confirm Delete</h3>
+                    </div>
+                    <div className="p-4">
+                      <p className="text-sm text-gray-700">Are you sure you want to delete this table? This action cannot be undone.</p>
+                    </div>
+                    <div className="flex gap-3 justify-end p-4 border-t">
+                      <button
+                        className="px-4 py-2 rounded-md bg-gray-100 text-gray-700"
+                        onClick={() => { setShowDeleteConfirm(false); setDeletePendingIndex(null); showToast("Delete cancelled", "info"); }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="px-4 py-2 rounded-md bg-[#E38B52] text-white"
+                        onClick={() => {
+                          if (deletePendingIndex !== null) {
+                            handleDeleteTable(deletePendingIndex);
+                            showToast("Table deleted", "success");
+                          }
+                          setShowDeleteConfirm(false);
+                          setDeletePendingIndex(null);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Results Section */}
               {savedTables.length > 0 ? (
                 <div className="space-y-6">
@@ -6559,6 +7021,10 @@ const StudentPage = () => {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
+                            if (unsavedTableIndex !== null && tableIndex === unsavedTableIndex) {
+                              showToast("Save edits before closing this table", "warning");
+                              return;
+                            }
                             setShowTableDetails((prev) => ({
                               ...prev,
                               [tableIndex]: !prev[tableIndex],
@@ -6570,16 +7036,8 @@ const StudentPage = () => {
                             {/* Primary Info - Always Visible */}
                             <h3 className="text-lg font-bold text-white">
                               Table {tableIndex + 1}
-                              {table.rows &&
-                                table.rows.length > 0 &&
-                                table.rows[0]["Student Name"] && (
-                                  <span className="text-sm font-normal ml-2">
-                                     {table.rows[0]["Student Name"]}
-                                  </span>
-                                )}
                             </h3>
                             <div className="text-sm text-white/90 mt-1.5 font-medium">
-                              {table.assessment_phase || "1st Assessment"} 
                               Report Date:{" "}
                               {table.report_date || "Not specified"}
                             </div>
@@ -6589,6 +7047,10 @@ const StudentPage = () => {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                if (unsavedTableIndex !== null && tableIndex === unsavedTableIndex) {
+                                  showToast("Save edits before closing this table", "warning");
+                                  return;
+                                }
                                 setShowTableDetails((prev) => ({
                                   ...prev,
                                   [tableIndex]: !prev[tableIndex],
@@ -6628,7 +7090,7 @@ const StudentPage = () => {
                           </div>
                           <div className="flex items-center gap-3 ml-auto">
                             <div className="relative">
-                              <span className="text-[11px] bg-gray-100 text-gray-600 rounded-full px-2 py-1">
+                              <span className="text-[15px] text-white/70 rounded-full px-2 py-1">
                                 {table.assessment_phase || "1st assmt"}
                               </span>
                             </div>
@@ -6636,11 +7098,11 @@ const StudentPage = () => {
                             {/* Export icon */}
                             <button
                               type="button"
-                              aria-label="Export table as CSV"
-                              title="Export CSV"
+                              aria-label="Export table as PDF"
+                              title="Export PDF"
                               onClick={(e) => {
                                 e.preventDefault();
-                                handleExportToCSV(table, tableIndex);
+                                handleExportToPDF(table, tableIndex);
                               }}
                               className="w-11 h-11 rounded-full bg-white/95 shadow-md hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-[#E38B52]"
                             >
@@ -6660,43 +7122,15 @@ const StudentPage = () => {
                               </svg>
                             </button>
 
-                            <button
-                              type="button"
-                              aria-label="Export table as PDF"
-                              title="Export PDF"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                handleExportToPDF(table, tableIndex);
-                              }}
-                              className="w-11 h-11 rounded-full bg-white/95 shadow-md hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-[#170F49]"
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                className="h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1zm2 9h6m-6 4h6"
-                                />
-                              </svg>
-                            </button>
-
                             {/* Delete icon */}
                             <button
-                              type="button"
-                              aria-label="Delete this table"
-                              title="Delete table"
+                              onMouseDown={(e) => e.preventDefault()}
                               onClick={(e) => {
-                                e.preventDefault();
-                                if (window.confirm("Delete this table?")) {
-                                  handleDeleteTable(tableIndex);
-                                }
+                                e.stopPropagation();
+                                setDeletePendingIndex(tableIndex);
+                                setShowDeleteConfirm(true);
                               }}
+                              title="Delete table"
                               className="w-11 h-11 rounded-full bg-white/95 shadow-md hover:shadow-xl hover:scale-105 transition-all duration-200 flex items-center justify-center text-red-500"
                             >
                               <svg
@@ -6824,7 +7258,7 @@ const StudentPage = () => {
                                 if (t !== table) return t;
                                 const rows = t.rows || [];
                           
-                                // For nonâ€‘quarter phases (e.g. 1st assmt), edit the base value directly
+                                // For non‑quarter phases (e.g. 1st assmt), edit the base value directly
                                 if (!isQuarterPhase) {
                                   const newRows = rows.map((row, idx) =>
                                     idx === skillRowIndex ? { ...row, [colName]: newValue } : row
@@ -6832,7 +7266,7 @@ const StudentPage = () => {
                                   return { ...t, rows: newRows, last_edited_at: nowIso };
                                 }
                           
-                                // For quarter phases (1stâ€“4th Qtr): only original B can be changed
+                                // For quarter phases (1st–4th Qtr): only original B can be changed
                                 const row = rows[skillRowIndex] || {};
                                 const rawCurrent = row[colName];
                                 const baseVal =
@@ -6840,7 +7274,7 @@ const StudentPage = () => {
                                     ? rawCurrent.trim().toUpperCase()
                                     : '';
                           
-                                if (baseVal !== 'B') return t; // ignore nonâ€‘B cells in quarter phases
+                                if (baseVal !== 'B') return t; // ignore non‑B cells in quarter phases
                           
                                 const cellKey = `${skillRowIndex}:${colName}`;
                                 const existingSnapshots = t.quarterSnapshots || {};
@@ -6882,7 +7316,7 @@ const StudentPage = () => {
                                   Questionnaire (A = Yes, B = No)
                                 </h4>
                                 <div className="flex items-center gap-2">
-                                  {/* Edit/Save/Saved Toggle â€“ now always visible */}
+                                  {/* Edit/Save/Saved Toggle – now always visible */}
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -6929,14 +7363,21 @@ const StudentPage = () => {
                                     )}
                                   </button>
                               
-                                  {/* Assessment Phase Dropdown - only when editing */}
                                   {table.isEditable && (
                                     <select
                                       value={table.assessment_phase || "1st assmt"}
                                       onClick={(e) => e.stopPropagation()}
                                       onChange={(e) => {
-                                        e.stopPropagation();
                                         const phase = e.target.value;
+                                        const tableKey = savedTables.indexOf(table);
+                                        
+                                        // Check if phase is unlocked
+                                        if (!isPhaseUnlocked(table, phase)) {
+                                          showToast(`Complete ${SPECIAL_EDU_ASSESSMENT_PHASES[SPECIAL_EDU_ASSESSMENT_PHASES.indexOf(phase) - 1]} before accessing this quarter`, "warning");
+                                          return;
+                                        }
+                                        
+                                        e.stopPropagation();
                                         const nowIso = new Date().toISOString();
                                         setSavedTables((prev) => {
                                           const updated = prev.map((t) =>
@@ -6953,13 +7394,17 @@ const StudentPage = () => {
                                           return updated;
                                         });
                                       }}
-                                      className="text-[10px] bg-white text-[#170F49] border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#E38B52] shadow-sm"
+                                      className="text-[10px] bg-white text-[#170F49] border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[#E38B52] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                      {SPECIAL_EDU_ASSESSMENT_PHASES.map((phase) => (
-                                        <option key={phase} value={phase}>
-                                          {phase}
-                                        </option>
-                                      ))}
+                                      {SPECIAL_EDU_ASSESSMENT_PHASES.map((phase) => {
+                                        const tableKey = savedTables.indexOf(table);
+                                        const isUnlocked = isPhaseUnlocked(table, phase);
+                                        return (
+                                          <option key={phase} value={phase} disabled={!isUnlocked}>
+                                            {phase} {!isUnlocked ? "(Locked)" : ""}
+                                          </option>
+                                        );
+                                      })}
                                     </select>
                                   )}
                               
@@ -7055,7 +7500,7 @@ const StudentPage = () => {
                                             className={
                                               "flex flex-wrap items-center gap-2 text-[11px] rounded-lg px-2 py-1.5 border transition-all duration-200 " +
                                               (isActiveQuestion
-                                                ? "bg-[#E38B52]/20 border-[#E38B52] shadow-md scale-105"
+                                                ? "bg-[#E38B52]/20 border-[#E38B52] shadow-md"
                                                 : "bg-gray-50 border-gray-100")
                                             }
                                           >
@@ -7309,7 +7754,7 @@ const StudentPage = () => {
                                         i += 1;
                                         continue;
                                       }
-                                      // Grouped columns (1st Assessment, I Qr, â€¦)
+                                      // Grouped columns (1st Assessment, I Qr, …)
                                       const group = col.group;
                                       let span = 0;
                                       while (
@@ -7421,7 +7866,7 @@ const StudentPage = () => {
                                               cellValue = '-';
                                             }
                                           } else {
-                                            // quadrant not edited yet â†’ show "-"
+                                            // quadrant not edited yet → show "-"
                                             cellValue = '-';
                                           }
                                         } else {
@@ -8797,11 +9242,11 @@ const StudentPage = () => {
                                 {/* Display a green check for true, red cross for false */}
                                 {value ? (
                                   <span className="text-green-500 font-bold mr-2 text-xl">
-                                    âœ“
+                                    ✓
                                   </span>
                                 ) : (
                                   <span className="text-red-500 font-bold mr-2 text-xl">
-                                    âœ—
+                                    ✗
                                   </span>
                                 )}
                                 {/* Format the key from snake_case to Title Case */}
@@ -10365,3 +10810,11 @@ const StudentPage = () => {
 };
 
 export default StudentPage;
+
+
+
+
+
+
+
+
