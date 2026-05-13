@@ -21,7 +21,9 @@ if settings.CORS_ORIGINS and settings.CORS_ORIGINS.strip():
 else:
     origins = [
         "http://localhost:3000",  # React frontend
-        "http://localhost:5173",  # Vite frontend (if using Vite)
+        "http://localhost:5173",
+        "https://therapinc.in",
+        "https://www.therapinc.in",  # Vite frontend (if using Vite)
     ]
 
 app.add_middleware(
