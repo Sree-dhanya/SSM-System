@@ -705,6 +705,10 @@ const StudentPage = () => {
   const [sendingToParent, setSendingToParent] = useState(false);
   const [sentToParent, setSentToParent] = useState(false);
 
+  // Stored AI Summaries - for viewing later
+  const [generatedSummaries, setGeneratedSummaries] = useState([]);
+  const [expandedGeneratedSummaryId, setExpandedGeneratedSummaryId] = useState(null);
+
   // IEP Report state
   const [iepData, setIepData] = useState({
     selectedMonth: "",
@@ -807,6 +811,20 @@ useEffect(() => {
     }
   } catch (e) {
     console.error("Failed to load IEPs by month:", e);
+  }
+}, [id]);
+
+// Load AI summaries from localStorage on mount
+useEffect(() => {
+  const summariesKey = `ai_summaries_student_${id}`;
+  try {
+    const stored = localStorage.getItem(summariesKey);
+    if (stored) {
+      const summaries = JSON.parse(stored);
+      setGeneratedSummaries(Array.isArray(summaries) ? summaries : []);
+    }
+  } catch (e) {
+    console.error("Failed to load AI summaries from localStorage:", e);
   }
 }, [id]);
 
@@ -1546,6 +1564,30 @@ const performDeleteIepReport = () => {
           const normalizedData = { ...parsed, summary: normalizedSummary };
           setAiAnalysis(normalizedData);
           setAiSummary(normalizedSummary || "(No summary returned)");
+          
+          // Save to generated summaries for viewing later
+          const newSummary = {
+            id: Date.now(),
+            summary: normalizedSummary,
+            dateRange: {
+              start: fromDate || "All dates",
+              end: toDate || "Current",
+            },
+            therapyType: selectedTherapyType || "All therapies",
+            reportCount: parsed?.used_reports || 0,
+            generatedAt: new Date().toLocaleString(),
+          };
+          setGeneratedSummaries(prev => {
+            const updated = [newSummary, ...prev];
+            // Also save to localStorage
+            const summariesKey = `ai_summaries_student_${id}`;
+            try {
+              localStorage.setItem(summariesKey, JSON.stringify(updated));
+            } catch (e) {
+              console.error("Failed to save AI summaries to localStorage:", e);
+            }
+            return updated;
+          });
           return;
         }
 
@@ -3417,6 +3459,18 @@ const isPhaseUnlocked = (table, targetPhase) => {
       }
     }; // --- PDF Header ---
 
+    // Add school logo to top-left
+    const logoWidth = 30;
+    const logoHeight = 30;
+    const logoX = leftCol;
+    const logoY = 10;
+    try {
+      doc.addImage(schoolLogo, "PNG", logoX, logoY, logoWidth, logoHeight);
+    } catch (e) {
+      console.error("Error adding logo to PDF:", e);
+    }
+
+    // Student photo on top-right
     const imgWidth = 40;
     const imgHeight = 50;
     const imgX = pageWidth - imgWidth - leftCol;
@@ -3620,6 +3674,17 @@ const isPhaseUnlocked = (table, targetPhase) => {
     };
 
     // --- PDF Generation Starts Here ---
+
+    // Add school logo to top-left (moved slightly higher)
+    const logoWidth = 30;
+    const logoHeight = 30;
+    const logoX = leftMargin;
+    const logoY = 5; // moved up for Case Record PDF
+    try {
+      doc.addImage(schoolLogo, "PNG", logoX, logoY, logoWidth, logoHeight);
+    } catch (e) {
+      console.error("Error adding logo to PDF:", e);
+    }
 
     // Header
     doc.setFontSize(18);
@@ -3902,12 +3967,30 @@ const isPhaseUnlocked = (table, targetPhase) => {
         y += 2; // Extra spacing
       };
 
+      // Add school logo to top-right
+      const logoWidth = 30;
+      const logoHeight = 30;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const logoX = pageWidth - logoWidth - rightMargin;
+      const logoY = 10;
+      try {
+        doc.addImage(schoolLogo, "JPEG", logoX, logoY, logoWidth, logoHeight);
+      } catch (logoError) {
+        console.error("Error adding logo to PDF:", logoError);
+        // Try again without format specification
+        try {
+          doc.addImage(schoolLogo, logoX, logoY, logoWidth, logoHeight);
+        } catch (e2) {
+          console.error("Second attempt to add logo failed:", e2);
+        }
+      }
+
       // Header
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text(
         "THERAPY SUMMARY REPORT",
-        doc.internal.pageSize.getWidth() / 2,
+        pageWidth / 2,
         y,
         { align: "center" },
       );
@@ -4643,6 +4726,23 @@ const isPhaseUnlocked = (table, targetPhase) => {
                             const marginRight = 15;
                             let yPosition = 20;
 
+                            // Add school logo to top-right
+                            const logoWidth = 30;
+                            const logoHeight = 30;
+                            const logoX = pageWidth - logoWidth - marginRight;
+                            const logoY = 10;
+                            try {
+                              pdf.addImage(schoolLogo, "JPEG", logoX, logoY, logoWidth, logoHeight);
+                            } catch (logoError) {
+                              console.error("Error adding logo to PDF:", logoError);
+                              // Try again without format specification
+                              try {
+                                pdf.addImage(schoolLogo, logoX, logoY, logoWidth, logoHeight);
+                              } catch (e2) {
+                                console.error("Second attempt to add logo failed:", e2);
+                              }
+                            }
+
                             // Title
                             pdf.setFontSize(18);
                             pdf.setFont(undefined, "bold");
@@ -5219,6 +5319,73 @@ const isPhaseUnlocked = (table, targetPhase) => {
                               ⚠️ Analysis was truncated due to content length.
                               Consider filtering by date range for more detailed
                               analysis.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Previously Generated Summaries Section */}
+                    {generatedSummaries.length > 0 && (
+                      <div className="mt-8 space-y-3">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                          <svg className="w-5 h-5 text-[#E38B52]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Previously Generated Summaries
+                        </h3>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {generatedSummaries.slice(0, visibleCount).map((summary) => (
+                            <details key={summary.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                              <summary className="flex justify-between items-center cursor-pointer">
+                                <div>
+                                  <div className="text-sm text-[#6F6C90]">{summary.generatedAt}</div>
+                                  <div className="text-lg font-semibold text-[#170F49]">AI Summary</div>
+                                  <div className="text-xs text-[#6F6C90]">
+                                    Date Range: {summary.dateRange.start} to {summary.dateRange.end}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-[#6F6C90] mr-2">{summary.reportCount} reports</span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      // delete
+                                      setGeneratedSummaries(prev => {
+                                        const filtered = prev.filter(s => s.id !== summary.id);
+                                        const summariesKey = `ai_summaries_student_${id}`;
+                                        try {
+                                          localStorage.setItem(summariesKey, JSON.stringify(filtered));
+                                        } catch (err) {
+                                          console.error("Failed to update localStorage:", err);
+                                        }
+                                        return filtered;
+                                      });
+                                    }}
+                                    className="px-2 py-1 bg-red-50 border border-red-400 text-red-600 text-xs rounded-lg hover:bg-red-400 hover:text-white transition-all duration-200"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </summary>
+
+                              <div className="mt-4 text-sm text-[#333] space-y-3">
+                                <div className="text-xs text-[#6F6C90] font-semibold">Summary</div>
+                                <div className="whitespace-pre-wrap text-sm text-gray-700">{summary.summary}</div>
+                                <div className="text-xs text-[#6F6C90]">Generated: {summary.generatedAt}</div>
+                                <div className="text-xs text-[#6F6C90]">Therapy: {summary.therapyType}</div>
+                              </div>
+                            </details>
+                          ))}
+                          {generatedSummaries.length > visibleCount && (
+                            <div className="text-center mt-4">
+                              <button
+                                onClick={() => setVisibleCount((v) => v + 5)}
+                                className="px-4 py-2 bg-[#E38B52] text-white rounded-md"
+                              >
+                                Load more
+                              </button>
                             </div>
                           )}
                         </div>
