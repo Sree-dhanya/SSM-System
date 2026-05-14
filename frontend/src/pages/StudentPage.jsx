@@ -705,6 +705,10 @@ const StudentPage = () => {
   const [sendingToParent, setSendingToParent] = useState(false);
   const [sentToParent, setSentToParent] = useState(false);
 
+  // Stored AI Summaries - for viewing later
+  const [generatedSummaries, setGeneratedSummaries] = useState([]);
+  const [expandedGeneratedSummaryId, setExpandedGeneratedSummaryId] = useState(null);
+
   // IEP Report state
   const [iepData, setIepData] = useState({
     selectedMonth: "",
@@ -717,6 +721,207 @@ const StudentPage = () => {
       parent: "",
     },
   });
+
+// per-month saved IEPs: { "January 2026": { ...iepData }, ... }
+const [savedIepByMonth, setSavedIepByMonth] = useState({});
+const MONTHS = [
+"January","February","March","April","May","June",
+"July","August","September","October","November","December"
+];
+
+// Add after the MONTHS constant:
+const [selectedYear, setSelectedYear] = useState(() => {
+  const savedYear = localStorage.getItem("iep_selected_year");
+  return savedYear ? Number(savedYear) : new Date().getFullYear();
+});
+
+useEffect(() => {
+  localStorage.setItem("iep_selected_year", String(selectedYear));
+}, [selectedYear]);
+const [expandedIepMonth, setExpandedIepMonth] = useState(null); // Track which month is expanded
+
+const [editingIepMonth, setEditingIepMonth] = useState(null);
+
+// Replace handleIepMonthChange with:
+const handleIepMonthChange = (month) => {
+  const monthYearKey = `${month} ${selectedYear}`;
+  setIepData((prev) => ({ ...prev, selectedMonth: month }));
+  
+  const key = `iep_data_student_${id}_by_month`;
+  try {
+    const mapping = JSON.parse(localStorage.getItem(key) || "{}");
+    if (mapping?.[monthYearKey]) {
+      setIepData(mapping[monthYearKey]);
+      setExpandedIepMonth(monthYearKey);
+    } else {
+      setIepData((prev) => ({
+        ...prev,
+        selectedMonth: month,
+        tableRows: [{ id: 1, adlSkills: "", academic: "", behaviouralSkills: "" }],
+        remarks: "",
+        signatures: { principal: "", teacher: "", parent: "" },
+      }));
+      setExpandedIepMonth(null);
+    }
+  } catch (e) {
+    console.error("Error loading month IEP:", e);
+  }
+};
+
+const saveIepData = async () => {
+  try {
+    if (!iepData?.selectedMonth) {
+      showToast("Please select a month before saving the IEP.", "error");
+      return;
+    }
+
+    setSavingIep(true);
+
+    const monthYearKey = `${iepData.selectedMonth} ${selectedYear}`;
+    const key = `iep_data_student_${id}_by_month`;
+    const mapping = JSON.parse(localStorage.getItem(key) || "{}");
+
+    mapping[monthYearKey] = {
+      ...iepData,
+      selectedMonth: iepData.selectedMonth,
+    };
+
+    localStorage.setItem(key, JSON.stringify(mapping));
+    setSavedIepByMonth(mapping);
+
+    setExpandedIepMonth(monthYearKey);
+    setIepFormVisible(false);
+    setEditingIepMonth(null);
+
+    showToast(`IEP saved for ${monthYearKey}`, "success");
+  } catch (error) {
+    console.error("Error saving IEP data:", error);
+    showToast("Failed to save IEP data", "error");
+  } finally {
+    setSavingIep(false);
+  }
+};
+
+
+
+// Add this helper to toggle collapse/expand:
+const toggleIepExpand = (monthYearKey) => {
+  if (expandedIepMonth === monthYearKey) {
+    setExpandedIepMonth(null);
+  } else {
+    setExpandedIepMonth(monthYearKey);
+    const key = `iep_data_student_${id}_by_month`;
+    const mapping = JSON.parse(localStorage.getItem(key) || "{}");
+    if (mapping?.[monthYearKey]) {
+      setIepData(mapping[monthYearKey]);
+    }
+  }
+};
+
+// load per-month mapping on mount / when student id changes
+useEffect(() => {
+  const key = `iep_data_student_${id}_by_month`;
+  try {
+    const mapping = JSON.parse(localStorage.getItem(key) || "{}");
+    setSavedIepByMonth(mapping || {});
+    // if a month is already selected, load it
+    if (iepData?.selectedMonth && mapping?.[iepData.selectedMonth]) {
+      setIepData(mapping[iepData.selectedMonth]);
+    }
+  } catch (e) {
+    console.error("Failed to load IEPs by month:", e);
+  }
+}, [id]);
+
+// Load AI summaries from localStorage on mount
+useEffect(() => {
+  const summariesKey = `ai_summaries_student_${id}`;
+  try {
+    const stored = localStorage.getItem(summariesKey);
+    if (stored) {
+      const summaries = JSON.parse(stored);
+      setGeneratedSummaries(Array.isArray(summaries) ? summaries : []);
+    }
+  } catch (e) {
+    console.error("Failed to load AI summaries from localStorage:", e);
+  }
+}, [id]);
+
+const [iepFormVisible, setIepFormVisible] = useState(false);
+const [showIepDeleteConfirm, setShowIepDeleteConfirm] = useState(false);
+const [deletePendingIepKey, setDeletePendingIepKey] = useState(null);
+
+const createIepTable = () => {
+  if (!iepData?.selectedMonth) {
+    showToast("Please select a month before creating the IEP table.", "error");
+    return;
+  }
+
+  const monthYearKey = `${iepData.selectedMonth} ${selectedYear}`;
+  const storageKey = `iep_data_student_${id}_by_month`;
+
+  try {
+    const mapping = JSON.parse(localStorage.getItem(storageKey) || "{}");
+
+    if (mapping?.[monthYearKey]) {
+      setIepData(mapping[monthYearKey]);
+    } else {
+      setIepData((prev) => ({
+        ...prev,
+        selectedMonth: iepData.selectedMonth,
+        tableRows: [{ id: 1, adlSkills: "", academic: "", behaviouralSkills: "" }],
+        remarks: "",
+        signatures: { principal: "", teacher: "", parent: "" },
+      }));
+    }
+
+    setIepFormVisible(true);
+    setExpandedIepMonth(null);
+  } catch (e) {
+    console.error("createIepTable error", e);
+    showToast("Failed to initialize IEP table", "error");
+  }
+};
+
+const confirmDeleteIepReport = (monthYearKey) => {
+  setDeletePendingIepKey(monthYearKey);
+  setShowIepDeleteConfirm(true);
+};
+
+const performDeleteIepReport = () => {
+  const monthYearKey = deletePendingIepKey;
+  if (!monthYearKey) return;
+  const storageKey = `iep_data_student_${id}_by_month`;
+  try {
+    const mapping = JSON.parse(localStorage.getItem(storageKey) || "{}");
+    if (mapping?.[monthYearKey]) {
+      delete mapping[monthYearKey];
+      localStorage.setItem(storageKey, JSON.stringify(mapping));
+      setSavedIepByMonth(mapping);
+      if (expandedIepMonth === monthYearKey) {
+        setExpandedIepMonth(null);
+        setIepFormVisible(false);
+        setIepData((prev) => ({
+          ...prev,
+          selectedMonth: "",
+          tableRows: [{ id: 1, adlSkills: "", academic: "", behaviouralSkills: "" }],
+          remarks: "",
+          signatures: { principal: "", teacher: "", parent: "" },
+        }));
+      }
+      showToast(`Deleted IEP for ${monthYearKey}`, "success");
+    } else {
+      showToast("Report not found", "error");
+    }
+  } catch (err) {
+    console.error("Failed to delete IEP report", err);
+    showToast("Failed to delete IEP report", "error");
+  } finally {
+    setShowIepDeleteConfirm(false);
+    setDeletePendingIepKey(null);
+  }
+};
+
   const [savingIep, setSavingIep] = useState(false);
 
   
@@ -860,221 +1065,195 @@ const StudentPage = () => {
     }));
   };
 
-  const saveIepData = async () => {
-    try {
-      setSavingIep(true);
-      const baseUrl =
-        process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
-      const token = localStorage.getItem("token");
-
-      // For now, save to localStorage (since no backend endpoint exists yet)
-      const iepKey = `iep_data_student_${id}`;
-      localStorage.setItem(iepKey, JSON.stringify(iepData));
-
-      // TODO: Replace with actual API call when backend endpoint is available
-      // await axios.post(`${baseUrl}/api/v1/students/${id}/iep`, iepData, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
-
-      showToast("IEP data saved successfully!", "success");
-    } catch (error) {
-      console.error("Error saving IEP data:", error);
-      showToast("Failed to save IEP data", "error");
-    } finally {
-      setSavingIep(false);
-    }
-  };
+  
 
   const loadIepData = () => {
     try {
-      const iepKey = `iep_data_student_${id}`;
-      const savedData = localStorage.getItem(iepKey);
-      if (savedData) {
-        setIepData(JSON.parse(savedData));
+      const key = `iep_data_student_${id}_by_month`;
+      const mapping = JSON.parse(localStorage.getItem(key) || "{}");
+      setSavedIepByMonth(mapping || {});
+      // if a month is selected, load that month
+      if (iepData?.selectedMonth && mapping?.[iepData.selectedMonth]) {
+        setIepData(mapping[iepData.selectedMonth]);
       }
     } catch (error) {
       console.error("Error loading IEP data:", error);
     }
   };
 
+// confirm-then-remove helper
+const handleRemoveRowWithConfirm = (rowId) => {
+  const ok = window.confirm("Delete this row? This action cannot be undone.");
+  if (!ok) return;
+  removeTableRow(rowId);
+  showToast("Row deleted", "success");
+};
+
+// add a new row where only `columnKey` is intended to be edited (other cells empty)
+const addCellToColumn = (columnKey) => {
+  setIepData((prev) => {
+    const newId = Date.now();
+    const newRow = {
+      id: newId,
+      adlSkills: columnKey === "adlSkills" ? "" : "",
+      academic: columnKey === "academic" ? "" : "",
+      behaviouralSkills: columnKey === "behaviouralSkills" ? "" : "",
+    };
+    return { ...prev, tableRows: [...prev.tableRows, newRow] };
+  });
+};
+
   const downloadIepAsPDF = () => {
     const pdf = new jsPDF();
-    const pageHeight = pdf.internal.pageSize.height;
-    const pageWidth = pdf.internal.pageSize.width;
-    let yPosition = 20;
-
-    // Title
-    pdf.setFontSize(20);
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    let y = 15;
+  
+    // Add logo at top left
+    const logoWidth = 35;
+    const logoHeight = 35;
+    try {
+      pdf.addImage(schoolLogo, "PNG", margin, y, logoWidth, logoHeight);
+    } catch (e) {
+      // Retry with JPEG format
+      try {
+        pdf.addImage(schoolLogo, "JPEG", margin, y, logoWidth, logoHeight);
+      } catch (err) {
+        console.warn("Could not add logo to PDF:", err);
+      }
+    }
+  
+    // Header with month name (positioned to right of logo)
+    pdf.setFontSize(18);
     pdf.setFont("helvetica", "bold");
-    pdf.text("TRIMESTER REPORT", pageWidth / 2, yPosition, { align: "center" });
-    yPosition += 15;
-
-    // Subtitle
-    pdf.setFontSize(16);
-    pdf.text("Individual Education Program (IEP)", pageWidth / 2, yPosition, {
-      align: "center",
-    });
-    yPosition += 20;
-
-    // Student Info
-    pdf.setFontSize(12);
+    const monthName = iepData.selectedMonth ? iepData.selectedMonth.toUpperCase() : "N/A";
+    pdf.text("TRIMESTER REPORT", pageWidth / 2, y + 14, { align: "center" });
+    pdf.text(`OF ${monthName}`, pageWidth / 2, y + 22, { align: "center" });
+    
+    // Move y past logo and title
+    y = 65;
+  
+    // Student info row
+    pdf.setFontSize(11);
+    pdf.text(`Student: ${student?.name || "N/A"}`, margin, y);
+    pdf.text(`Class: ${student?.class || ""}`, pageWidth - margin - 60, y);
+    y += 10;
+  
+    // Table header
+    const tableX = margin;
+    const tableW = pageWidth - margin * 2;
+    const colW = tableW / 3;
+    const headerHeight = 10;
+    pdf.setFillColor(227, 139, 82);
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(11);
+    pdf.rect(tableX, y, colW, headerHeight, "F");
+    pdf.rect(tableX + colW, y, colW, headerHeight, "F");
+    pdf.rect(tableX + 2 * colW, y, colW, headerHeight, "F");
+    pdf.text("ADL SKILLS", tableX + colW / 2, y + 7, { align: "center" });
+    pdf.text("ACADEMIC", tableX + colW + colW / 2, y + 7, { align: "center" });
+    pdf.text("BEHAVIOURAL SKILLS", tableX + 2 * colW + colW / 2, y + 7, { align: "center" });
+    y += headerHeight + 4;
+    pdf.setTextColor(0, 0, 0);
     pdf.setFont("helvetica", "normal");
-    pdf.text(`Student: ${student?.name || "N/A"}`, 20, yPosition);
-    pdf.text(
-      `Month: ${iepData.selectedMonth || "N/A"}`,
-      pageWidth - 80,
-      yPosition,
-    );
-    yPosition += 20;
-
-    // Table Headers
+    pdf.setFontSize(10);
+  
+    // Rows
+    iepData.tableRows.forEach((row) => {
+      // if page break needed
+      if (y > pageHeight - 60) {
+        pdf.addPage();
+        y = 20;
+      }
+  
+      const rowHeight = 30; // allocate space for wrapped text
+      const adlLines = pdf.splitTextToSize(row.adlSkills || "", colW - 8);
+      const academicLines = pdf.splitTextToSize(row.academic || "", colW - 8);
+      const behLines = pdf.splitTextToSize(row.behaviouralSkills || "", colW - 8);
+      const neededHeight = Math.max(adlLines.length, academicLines.length, behLines.length) * 5 + 8;
+  
+      // ensure page break if row won't fit
+      if (y + neededHeight > pageHeight - 60) {
+        pdf.addPage();
+        y = 20;
+      }
+  
+      // Draw cell borders
+      pdf.rect(tableX, y, colW, neededHeight);
+      pdf.rect(tableX + colW, y, colW, neededHeight);
+      pdf.rect(tableX + 2 * colW, y, colW, neededHeight);
+  
+      // Draw text inside cells
+      pdf.text(adlLines, tableX + 4, y + 6);
+      pdf.text(academicLines, tableX + colW + 4, y + 6);
+      pdf.text(behLines, tableX + 2 * colW + 4, y + 6);
+  
+      y += neededHeight + 6;
+    });
+  
+    // Remarks and IEP content
+    if (y + 60 > pageHeight - 40) {
+      pdf.addPage();
+      y = 20;
+    }
+  
     pdf.setFontSize(11);
     pdf.setFont("helvetica", "bold");
-    const colWidth = (pageWidth - 40) / 3;
-
-    pdf.rect(20, yPosition - 5, colWidth, 10);
-    pdf.rect(20 + colWidth, yPosition - 5, colWidth, 10);
-    pdf.rect(20 + 2 * colWidth, yPosition - 5, colWidth, 10);
-
-    pdf.text("ADL SKILLS", 20 + colWidth / 2, yPosition, { align: "center" });
-    pdf.text("ACADEMIC", 20 + colWidth + colWidth / 2, yPosition, {
-      align: "center",
-    });
-    pdf.text(
-      "BEHAVIOURAL SKILLS",
-      20 + 2 * colWidth + colWidth / 2,
-      yPosition,
-      { align: "center" },
-    );
-    yPosition += 15;
-
-    // Table Rows
+    pdf.text("IEP OF THE STUDENT:", margin, y);
+    y += 8;
     pdf.setFont("helvetica", "normal");
-    iepData.tableRows.forEach((row, index) => {
-      if (yPosition > pageHeight - 30) {
-        pdf.addPage();
-        yPosition = 20;
-      }
-
-      const rowHeight = 15;
-      pdf.rect(20, yPosition - 5, colWidth, rowHeight);
-      pdf.rect(20 + colWidth, yPosition - 5, colWidth, rowHeight);
-      pdf.rect(20 + 2 * colWidth, yPosition - 5, colWidth, rowHeight);
-
-      // Text wrapping for long content
-      const maxWidth = colWidth - 10;
-      const adlLines = pdf.splitTextToSize(row.adlSkills || "", maxWidth);
-      const academicLines = pdf.splitTextToSize(row.academic || "", maxWidth);
-      const behaviouralLines = pdf.splitTextToSize(
-        row.behaviouralSkills || "",
-        maxWidth,
-      );
-
-      pdf.text(adlLines, 25, yPosition, { maxWidth });
-      pdf.text(academicLines, 25 + colWidth, yPosition, { maxWidth });
-      pdf.text(behaviouralLines, 25 + 2 * colWidth, yPosition, { maxWidth });
-
-      yPosition += Math.max(
-        rowHeight,
-        Math.max(
-          adlLines.length,
-          academicLines.length,
-          behaviouralLines.length,
-        ) * 5,
-      );
-    });
-
-    yPosition += 20;
-
-    // IEP Section
-    if (yPosition > pageHeight - 40) {
-      pdf.addPage();
-      yPosition = 20;
-    }
-
+    const iepLines = pdf.splitTextToSize(iepData.iepStudent || "", pageWidth - margin * 2);
+    pdf.text(iepLines, margin, y);
+    y += iepLines.length * 5 + 8;
+  
+    // Remarks section with box
     pdf.setFont("helvetica", "bold");
-    pdf.text("IEP OF THE STUDENT:", 20, yPosition);
-    yPosition += 10;
-
+    pdf.setFontSize(11);
+    pdf.text("REMARKS", margin, y);
+    y += 8;
     pdf.setFont("helvetica", "normal");
-    const iepLines = pdf.splitTextToSize(
-      iepData.iepStudent || "",
-      pageWidth - 40,
-    );
-    pdf.text(iepLines, 20, yPosition);
-    yPosition += iepLines.length * 5 + 15;
-
-    // Remarks Section
-    if (yPosition > pageHeight - 40) {
-      pdf.addPage();
-      yPosition = 20;
+    pdf.setFontSize(10);
+    
+    // Draw box for remarks
+    const remarksBoxHeight = 30;
+    pdf.rect(margin, y, pageWidth - margin * 2, remarksBoxHeight);
+    
+    // Add remarks text inside the box
+    const remarksLines = pdf.splitTextToSize(iepData.remarks || "", pageWidth - margin * 2 - 4);
+    if (remarksLines.length > 0) {
+      pdf.text(remarksLines, margin + 2, y + 6);
     }
-
-    pdf.setFont("helvetica", "bold");
-    pdf.text("REMARKS:", 20, yPosition);
-    yPosition += 10;
-
+    
+    y += remarksBoxHeight + 8;
+  
+    // Signatures section
+    if (y + 50 > pageHeight - 40) {
+      pdf.addPage();
+      y = 20;
+    }
+    y += 12;
     pdf.setFont("helvetica", "normal");
-    const remarksLines = pdf.splitTextToSize(
-      iepData.remarks || "",
-      pageWidth - 40,
-    );
-    pdf.text(remarksLines, 20, yPosition);
-    yPosition += remarksLines.length * 5 + 30;
-
-    // Signatures Section
-    if (yPosition > pageHeight - 60) {
-      pdf.addPage();
-      yPosition = 20;
-    }
-
-    pdf.setFont("helvetica", "bold");
-    pdf.text("Signatures:", 20, yPosition);
-    yPosition += 20;
-
-    const signatureWidth = (pageWidth - 60) / 3;
-    pdf.text("Principal", 20, yPosition);
-    pdf.text("Teacher", 20 + signatureWidth + 20, yPosition);
-    pdf.text("Parent", 20 + 2 * (signatureWidth + 20), yPosition);
-
-    yPosition += 10;
-    pdf.line(20, yPosition, 20 + signatureWidth, yPosition);
-    pdf.line(
-      20 + signatureWidth + 20,
-      yPosition,
-      20 + 2 * signatureWidth + 20,
-      yPosition,
-    );
-    pdf.line(
-      20 + 2 * (signatureWidth + 20),
-      yPosition,
-      20 + 3 * signatureWidth + 40,
-      yPosition,
-    );
-
-    if (iepData.signatures.principal) {
-      pdf.setFontSize(10);
-      pdf.text(iepData.signatures.principal, 20, yPosition + 15);
-    }
-    if (iepData.signatures.teacher) {
-      pdf.setFontSize(10);
-      pdf.text(
-        iepData.signatures.teacher,
-        20 + signatureWidth + 20,
-        yPosition + 15,
-      );
-    }
-    if (iepData.signatures.parent) {
-      pdf.setFontSize(10);
-      pdf.text(
-        iepData.signatures.parent,
-        20 + 2 * (signatureWidth + 20),
-        yPosition + 15,
-      );
-    }
-
-    // Save PDF
-    const fileName = `IEP_Report_${student?.name?.replace(/\s+/g, "_")}_${iepData.selectedMonth}.pdf`;
+    pdf.setFontSize(10);
+    const sigW = (pageWidth - margin * 2) / 3;
+    
+    // Draw signature lines - three equal columns
+    const lineY = y;
+    const lineLength = sigW - 10;
+    pdf.line(margin + 5, lineY, margin + 5 + lineLength, lineY);
+    pdf.line(margin + sigW + 5, lineY, margin + sigW + 5 + lineLength, lineY);
+    pdf.line(margin + 2 * sigW + 5, lineY, margin + 2 * sigW + 5 + lineLength, lineY);
+    
+    // Labels below signature lines
+    y = lineY + 6;
+    pdf.setFontSize(9);
+    pdf.text("Signature of the Principal", margin + sigW / 2, y, { align: "center" });
+    pdf.text("Signature of the Teacher", margin + sigW + sigW / 2, y, { align: "center" });
+    pdf.text("Signature of the Parent", margin + 2 * sigW + sigW / 2, y, { align: "center" });
+  
+    // Save
+    const fileMonthLabel = `${monthName}_${selectedYear}`;
+    const fileName = `IEP_Report_${(student?.name || "student").replace(/\s+/g, "_")}_${fileMonthLabel}.pdf`;
     pdf.save(fileName);
   };
 
@@ -1403,6 +1582,30 @@ const StudentPage = () => {
           const normalizedData = { ...parsed, summary: normalizedSummary };
           setAiAnalysis(normalizedData);
           setAiSummary(normalizedSummary || "(No summary returned)");
+          
+          // Save to generated summaries for viewing later
+          const newSummary = {
+            id: Date.now(),
+            summary: normalizedSummary,
+            dateRange: {
+              start: fromDate || "All dates",
+              end: toDate || "Current",
+            },
+            therapyType: selectedTherapyType || "All therapies",
+            reportCount: parsed?.used_reports || 0,
+            generatedAt: new Date().toLocaleString(),
+          };
+          setGeneratedSummaries(prev => {
+            const updated = [newSummary, ...prev];
+            // Also save to localStorage
+            const summariesKey = `ai_summaries_student_${id}`;
+            try {
+              localStorage.setItem(summariesKey, JSON.stringify(updated));
+            } catch (e) {
+              console.error("Failed to save AI summaries to localStorage:", e);
+            }
+            return updated;
+          });
           return;
         }
 
@@ -3274,6 +3477,18 @@ const isPhaseUnlocked = (table, targetPhase) => {
       }
     }; // --- PDF Header ---
 
+    // Add school logo to top-left
+    const logoWidth = 30;
+    const logoHeight = 30;
+    const logoX = leftCol;
+    const logoY = 10;
+    try {
+      doc.addImage(schoolLogo, "PNG", logoX, logoY, logoWidth, logoHeight);
+    } catch (e) {
+      console.error("Error adding logo to PDF:", e);
+    }
+
+    // Student photo on top-right
     const imgWidth = 40;
     const imgHeight = 50;
     const imgX = pageWidth - imgWidth - leftCol;
@@ -3477,6 +3692,17 @@ const isPhaseUnlocked = (table, targetPhase) => {
     };
 
     // --- PDF Generation Starts Here ---
+
+    // Add school logo to top-left (moved slightly higher)
+    const logoWidth = 30;
+    const logoHeight = 30;
+    const logoX = leftMargin;
+    const logoY = 5; // moved up for Case Record PDF
+    try {
+      doc.addImage(schoolLogo, "PNG", logoX, logoY, logoWidth, logoHeight);
+    } catch (e) {
+      console.error("Error adding logo to PDF:", e);
+    }
 
     // Header
     doc.setFontSize(18);
@@ -3759,12 +3985,30 @@ const isPhaseUnlocked = (table, targetPhase) => {
         y += 2; // Extra spacing
       };
 
+      // Add school logo to top-right
+      const logoWidth = 30;
+      const logoHeight = 30;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const logoX = pageWidth - logoWidth - rightMargin;
+      const logoY = 10;
+      try {
+        doc.addImage(schoolLogo, "JPEG", logoX, logoY, logoWidth, logoHeight);
+      } catch (logoError) {
+        console.error("Error adding logo to PDF:", logoError);
+        // Try again without format specification
+        try {
+          doc.addImage(schoolLogo, logoX, logoY, logoWidth, logoHeight);
+        } catch (e2) {
+          console.error("Second attempt to add logo failed:", e2);
+        }
+      }
+
       // Header
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text(
         "THERAPY SUMMARY REPORT",
-        doc.internal.pageSize.getWidth() / 2,
+        pageWidth / 2,
         y,
         { align: "center" },
       );
@@ -4500,6 +4744,23 @@ const isPhaseUnlocked = (table, targetPhase) => {
                             const marginRight = 15;
                             let yPosition = 20;
 
+                            // Add school logo to top-right
+                            const logoWidth = 30;
+                            const logoHeight = 30;
+                            const logoX = pageWidth - logoWidth - marginRight;
+                            const logoY = 10;
+                            try {
+                              pdf.addImage(schoolLogo, "JPEG", logoX, logoY, logoWidth, logoHeight);
+                            } catch (logoError) {
+                              console.error("Error adding logo to PDF:", logoError);
+                              // Try again without format specification
+                              try {
+                                pdf.addImage(schoolLogo, logoX, logoY, logoWidth, logoHeight);
+                              } catch (e2) {
+                                console.error("Second attempt to add logo failed:", e2);
+                              }
+                            }
+
                             // Title
                             pdf.setFontSize(18);
                             pdf.setFont(undefined, "bold");
@@ -5076,6 +5337,73 @@ const isPhaseUnlocked = (table, targetPhase) => {
                               ⚠️ Analysis was truncated due to content length.
                               Consider filtering by date range for more detailed
                               analysis.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Previously Generated Summaries Section */}
+                    {generatedSummaries.length > 0 && (
+                      <div className="mt-8 space-y-3">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                          <svg className="w-5 h-5 text-[#E38B52]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Previously Generated Summaries
+                        </h3>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {generatedSummaries.slice(0, visibleCount).map((summary) => (
+                            <details key={summary.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                              <summary className="flex justify-between items-center cursor-pointer">
+                                <div>
+                                  <div className="text-sm text-[#6F6C90]">{summary.generatedAt}</div>
+                                  <div className="text-lg font-semibold text-[#170F49]">AI Summary</div>
+                                  <div className="text-xs text-[#6F6C90]">
+                                    Date Range: {summary.dateRange.start} to {summary.dateRange.end}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-[#6F6C90] mr-2">{summary.reportCount} reports</span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      // delete
+                                      setGeneratedSummaries(prev => {
+                                        const filtered = prev.filter(s => s.id !== summary.id);
+                                        const summariesKey = `ai_summaries_student_${id}`;
+                                        try {
+                                          localStorage.setItem(summariesKey, JSON.stringify(filtered));
+                                        } catch (err) {
+                                          console.error("Failed to update localStorage:", err);
+                                        }
+                                        return filtered;
+                                      });
+                                    }}
+                                    className="px-2 py-1 bg-red-50 border border-red-400 text-red-600 text-xs rounded-lg hover:bg-red-400 hover:text-white transition-all duration-200"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </summary>
+
+                              <div className="mt-4 text-sm text-[#333] space-y-3">
+                                <div className="text-xs text-[#6F6C90] font-semibold">Summary</div>
+                                <div className="whitespace-pre-wrap text-sm text-gray-700">{summary.summary}</div>
+                                <div className="text-xs text-[#6F6C90]">Generated: {summary.generatedAt}</div>
+                                <div className="text-xs text-[#6F6C90]">Therapy: {summary.therapyType}</div>
+                              </div>
+                            </details>
+                          ))}
+                          {generatedSummaries.length > visibleCount && (
+                            <div className="text-center mt-4">
+                              <button
+                                onClick={() => setVisibleCount((v) => v + 5)}
+                                className="px-4 py-2 bg-[#E38B52] text-white rounded-md"
+                              >
+                                Load more
+                              </button>
                             </div>
                           )}
                         </div>
@@ -6124,6 +6452,18 @@ const isPhaseUnlocked = (table, targetPhase) => {
           ) : activeTab === "iep" ? (
                         
             <div className="max-w-6xl mx-auto p-6">
+              {showIepDeleteConfirm && (
+                <div className="fixed inset-0 z-50 flex justify-center bg-black/40 pt-6">
+                  <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                    <h3 className="text-lg font-bold">Confirm delete</h3>
+                    <p className="mt-2">Are you sure you want to delete the IEP for <strong>{deletePendingIepKey}</strong>? This action cannot be undone.</p>
+                    <div className="mt-4 flex justify-end gap-2">
+                      <button onClick={() => { setShowIepDeleteConfirm(false); setDeletePendingIepKey(null); }} className="px-3 py-1 border rounded">Cancel</button>
+                      <button onClick={performDeleteIepReport} className="px-3 py-1 bg-red-600 text-white rounded">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <h2 className="text-2xl font-bold text-[#170F49] mb-6 pb-4 border-b border-[#E38B52]/20 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-[#E38B52]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v8m0-8l-3 3m3-3l3 3M4 6h16" />
@@ -6136,44 +6476,57 @@ const isPhaseUnlocked = (table, targetPhase) => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[#E38B52]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
-                  Trimester Report of: <span className="font-semibold ml-1">{student?.name}</span>
+                  IEP Report of: <span className="font-semibold ml-1">{student?.name}</span>
                 </h3>
+
+                
             
-                <div className="flex flex-col md:flex-row gap-6 items-end">
-                  <div className="flex items-center gap-3">
-                    <label className="block text-sm font-semibold text-[#170F49] whitespace-nowrap">Select Month</label>
-                    <div className="relative w-40 group">
-                      <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r from-[#E38B52]/40 to-[#F5A572]/40 blur-lg opacity-60 transition-opacity duration-300" />
+                {/* Month and Year selector */}
+                  
+                  <div className="flex flex-col md:flex-row gap-4 items-end">
+                    {/* Month Selector */}
+                    <div className="flex items-center gap-3">
+                      <label className="block text-sm font-semibold text-[#170F49] whitespace-nowrap">Select Month</label>
                       <select
-                        value={iepData.selectedMonth}
-                        onChange={(e) => handleIepInputChange("selectedMonth", e.target.value)}
-                        className="relative w-full px-3 py-1.5 rounded-xl border border-[#E38B52]/25 bg-white/90 text-[#170F49] font-medium shadow-sm transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-[#E38B52]/20 focus:border-[#E38B52]"
+                        value={iepData.selectedMonth || ""}
+                        onChange={(e) => handleIepMonthChange(e.target.value)}
+                        className="px-3 py-1.5 rounded-xl border border-[#E38B52]/25 bg-white/90 text-[#170F49] font-medium"
                       >
                         <option value="">Choose a month</option>
-                        {["January","February","March","April","May","June","July","August","September","October","November","December"].map(m => (
+                        {MONTHS.map(m => (
                           <option key={m} value={m}>{m}</option>
                         ))}
                       </select>
                     </div>
+                    <div className="flex items-center gap-3">
+                      <label className="block text-sm font-semibold text-[#170F49] whitespace-nowrap">
+                        Year
+                      </label>
+                      <input
+                        type="number"
+                        min="1900"
+                        max="2100"
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(Number(e.target.value) || new Date().getFullYear())}
+                        className="px-3 py-1.5 rounded-xl border border-[#E38B52]/25 bg-white/90 text-[#170F49] font-medium w-28"
+                      />
+                    </div>
+                  
                   </div>
-            
-                  <div className="flex gap-3">
+                  <div className="mt-4">
                     <button
-                      onClick={downloadIepAsPDF}
-                      disabled={!iepData.selectedMonth}
-                      className="px-6 py-2.5 bg-white text-[#E38B52] border border-[#E38B52] rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      type="button"
+                      onClick={createIepTable}
+                      className="px-6 py-2.5 bg-white text-[#E38B52] border border-[#E38B52] rounded-lg transition-all duration-300 shadow-md hover:shadow-lg hover:bg-[#FFF3E8] whitespace-nowrap"
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m7-7H5" />
-                      </svg>
-                      Download PDF
+                      + Create Report
                     </button>
                   </div>
-                </div>
-            
-                <p className="mt-3 text-xs text-[#6F6C90]">Select the month and use the fields below to prepare the IEP.</p>
+                <p className="mt-3 text-xs text-[#6F6C90]">Select the month and year to prepare the IEP report.</p>
+              
+                
               </div>
-            
+            {iepFormVisible && (
               <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl p-8">
                 {/* Table controls */}
                 <div className="flex justify-between items-center mb-4">
@@ -6195,50 +6548,55 @@ const isPhaseUnlocked = (table, targetPhase) => {
                         <th className="px-6 py-4 text-left text-sm font-semibold text-white">ADL SKILLS</th>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-white">ACADEMIC</th>
                         <th className="px-6 py-4 text-left text-sm font-semibold text-white">BEHAVIOURAL SKILLS</th>
-                        <th className="px-6 py-4 text-center text-sm font-semibold text-white w-16">Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {iepData.tableRows.map((row, index) => (
-                        <tr key={row.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                          <td className="px-6 py-4">
-                            <textarea
-                              value={row.adlSkills}
-                              onChange={(e) => handleTableRowChange(row.id, "adlSkills", e.target.value)}
-                              placeholder="Enter ADL skills..."
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
-                              rows={3}
-                            />
-                          </td>
-                          <td className="px-6 py-4">
-                            <textarea
-                              value={row.academic}
-                              onChange={(e) => handleTableRowChange(row.id, "academic", e.target.value)}
-                              placeholder="Enter academic skills..."
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
-                              rows={3}
-                            />
-                          </td>
-                          <td className="px-6 py-4">
-                            <textarea
-                              value={row.behaviouralSkills}
-                              onChange={(e) => handleTableRowChange(row.id, "behaviouralSkills", e.target.value)}
-                              placeholder="Enter behavioural skills..."
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
-                              rows={3}
-                            />
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            {iepData.tableRows.length > 1 && (
-                              <button onClick={() => removeTableRow(row.id)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all duration-200" title="Remove row">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6" />
-                                </svg>
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                        {iepData.tableRows.map((row, index) => (
+                          <tr key={row.id} className={`relative ${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                            <td className="px-6 py-4">
+                              <textarea
+                                value={row.adlSkills}
+                                onChange={(e) => handleTableRowChange(row.id, "adlSkills", e.target.value)}
+                                placeholder="Enter ADL skills..."
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                                rows={3}
+                              />
+                            </td>
+                        
+                            <td className="px-6 py-4">
+                              <textarea
+                                value={row.academic}
+                                onChange={(e) => handleTableRowChange(row.id, "academic", e.target.value)}
+                                placeholder="Enter academic skills..."
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                                rows={3}
+                              />
+                            </td>
+                        
+                            <td className="px-6 py-4 pr-12"> {/* add right padding for the absolute button */}
+                              <textarea
+                                value={row.behaviouralSkills}
+                                onChange={(e) => handleTableRowChange(row.id, "behaviouralSkills", e.target.value)}
+                                placeholder="Enter behavioural skills..."
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                                rows={3}
+                              />
+                              {/* absolute delete button on the right side of the row */}
+                              {iepData.tableRows.length > 1 && (
+                                <button
+                                  onClick={() => handleRemoveRowWithConfirm(row.id)}
+                                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-red-600 p-1.5 rounded-md hover:bg-red-50"
+                                  title="Delete row"
+                                  aria-label="Delete row"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6" />
+                                  </svg>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
                     </tbody>
                   </table>
                 </div>
@@ -6288,7 +6646,228 @@ const isPhaseUnlocked = (table, targetPhase) => {
                   </button>
                 </div>
               </div>
-            </div>
+            )}
+
+              {/* Saved IEP Reports List */}
+                <div className="mt-6 mb-6 p-6 border-2 border-[#E38B52]/30 rounded-2xl bg-gradient-to-br from-white via-orange-50/30 to-white shadow-xl">
+                  <h3 className="text-lg font-semibold text-[#170F49] mb-4 flex items-center gap-2">Saved Reports</h3>
+                  {Object.keys(savedIepByMonth).length === 0 ? (
+                    <p className="text-sm text-gray-500">No saved reports yet.</p>
+                  ) : (
+                    Object.keys(savedIepByMonth).map((monthYearKey) => (
+                      <div
+                        key={monthYearKey}
+                        className="border border-[#E38B52]/30 rounded-xl bg-white shadow-md overflow-hidden"
+                      >
+                        {/* Collapsed Header */}
+                        <div className="w-full px-6 py-4 flex items-center justify-between bg-gradient-to-r from-[#E38B52]/10 to-transparent">
+                          <button
+                            onClick={() => toggleIepExpand(monthYearKey)}
+                            className="text-left flex-1 text-base font-semibold text-[#170F49]"
+                            aria-expanded={expandedIepMonth === monthYearKey}
+                          >
+                            TRIMESTER REPORT FOR {monthYearKey.toUpperCase()}
+                          </button>
+                        
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleIepExpand(monthYearKey); }}
+                              title={expandedIepMonth === monthYearKey ? "Collapse" : "Expand"}
+                              className="p-2 rounded-md text-[#E38B52] hover:bg-[#FFF3E8]"
+                              aria-label="Toggle"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${expandedIepMonth === monthYearKey ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedIepMonth(monthYearKey);
+                                setEditingIepMonth(monthYearKey);
+                                setIepData(savedIepByMonth[monthYearKey]);
+                              }}
+                              className="px-3 py-1.5 rounded-md bg-[#E38B52] text-white text-sm hover:bg-[#C8742F]"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); confirmDeleteIepReport(monthYearKey); }}
+                              title="Delete report"
+                              className="p-2 rounded-md text-red-600 hover:bg-red-50"
+                              aria-label="Delete report"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      
+                        {/* Expanded Content */}
+                        {expandedIepMonth === monthYearKey && (
+                          <div className="px-6 py-6 border-t border-[#E38B52]/20 space-y-6 bg-white/50">
+                            {/* Table Section */}
+                            <div>
+                              <h4 className="text-sm font-semibold text-[#170F49] mb-3">Assessment Table</h4>
+                              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                                <table className="w-full">
+                                  <thead className="bg-gradient-to-r from-[#E38B52] to-[#F5A572]">
+                                    <tr>
+                                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">ADL SKILLS</th>
+                                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">ACADEMIC</th>
+                                      <th className="px-6 py-4 text-left text-sm font-semibold text-white">BEHAVIOURAL SKILLS</th>
+                                      
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                      {iepData.tableRows.map((row, index) => (
+                                        <tr key={row.id} className={`relative ${index % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                                          <td className="px-6 py-4">
+                                            <textarea
+                                              value={row.adlSkills}
+                                              onChange={(e) => handleTableRowChange(row.id, "adlSkills", e.target.value)}
+                                              placeholder="Enter ADL skills..."
+                                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                                              rows={3}
+                                              readOnly={!editingIepMonth || editingIepMonth !== monthYearKey}
+                                            />
+                                          </td>
+                                      
+                                          <td className="px-6 py-4">
+                                            <textarea
+                                              value={row.academic}
+                                              onChange={(e) => handleTableRowChange(row.id, "academic", e.target.value)}
+                                              placeholder="Enter academic skills..."
+                                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                                              rows={3}
+                                              readOnly={!editingIepMonth || editingIepMonth !== monthYearKey}
+                                            />
+                                          </td>
+                                      
+                                          <td className="px-6 py-4 pr-12"> {/* add right padding for the absolute button */}
+                                            <textarea
+                                              value={row.behaviouralSkills}
+                                              onChange={(e) => handleTableRowChange(row.id, "behaviouralSkills", e.target.value)}
+                                              placeholder="Enter behavioural skills..."
+                                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] focus:border-transparent resize-none"
+                                              rows={3}
+                                              readOnly={!editingIepMonth || editingIepMonth !== monthYearKey}
+                                            />
+                                            {/* absolute delete button on the right side of the row */}
+                                            {iepData.tableRows.length > 1 && (
+                                              <button
+                                                onClick={() => handleRemoveRowWithConfirm(row.id)}
+                                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-red-600 p-1.5 rounded-md hover:bg-red-50"
+                                                title="Delete row"
+                                                aria-label="Delete row"
+                                              >
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6" />
+                                                </svg>
+                                              </button>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      
+                                  </tbody>
+                                </table>
+                              </div>
+                              <button
+                                onClick={addTableRow}
+                                className="mt-3 px-4 py-2 bg-[#E38B52] text-white rounded-lg hover:bg-[#C8742F] text-sm"
+                              >
+                                + Add Row
+                              </button>
+                            </div>
+                
+                            {/* Remarks */}
+                            <div>
+                              <label className="block text-sm font-semibold text-[#170F49] mb-2">IEP OF THE STUDENT:</label>
+                              <textarea
+                                value={iepData.iepStudent}
+                                onChange={(e) => handleIepInputChange("iepStudent", e.target.value)}
+                                placeholder="Enter the Individual Education Program details..."
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] resize-none"
+                                rows={4}
+                                readOnly={!editingIepMonth || editingIepMonth !== monthYearKey}
+                              />
+                            </div>
+                
+                            <div>
+                              <label className="block text-sm font-semibold text-[#170F49] mb-2">Remarks:</label>
+                              <textarea
+                                value={iepData.remarks}
+                                onChange={(e) => handleIepInputChange("remarks", e.target.value)}
+                                placeholder="Enter additional remarks..."
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52] resize-none"
+                                rows={4}
+                                readOnly={!editingIepMonth || editingIepMonth !== monthYearKey}
+                              />
+                            </div>
+                
+                            {/* Signatures */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-[#6F6C90] mb-2">Principal</label>
+                                <input
+                                  type="text"
+                                  value={iepData.signatures.principal}
+                                  onChange={(e) => handleSignatureChange("principal", e.target.value)}
+                                  placeholder="Principal's signature/name"
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52]"
+                                  readOnly={!editingIepMonth || editingIepMonth !== monthYearKey}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[#6F6C90] mb-2">Teacher</label>
+                                <input
+                                  type="text"
+                                  value={iepData.signatures.teacher}
+                                  onChange={(e) => handleSignatureChange("teacher", e.target.value)}
+                                  placeholder="Teacher's signature/name"
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52]"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-[#6F6C90] mb-2">Parent/Guardian</label>
+                                <input
+                                  type="text"
+                                  value={iepData.signatures.parent}
+                                  onChange={(e) => handleSignatureChange("parent", e.target.value)}
+                                  placeholder="Parent's signature/name"
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E38B52]"
+                                />
+                              </div>
+                            </div>
+                
+                            {/* Actions */}
+                            <div className="flex gap-3 pt-4 border-t">
+                              <button
+                                onClick={saveIepData}
+                                disabled={savingIep}
+                                className="px-6 py-2 bg-gradient-to-r from-[#E38B52] to-[#F5A572] text-white rounded-lg hover:from-[#C8742F] hover:to-[#E38B52] disabled:opacity-50"
+                              >
+                                {savingIep ? "Saving…" : "Save Report"}
+                              </button>
+                              <button
+                                onClick={downloadIepAsPDF}
+                                className="px-6 py-2 bg-white text-[#E38B52] border border-[#E38B52] rounded-lg hover:bg-[#FFF3E8]"
+                              >
+                                Download PDF
+                              </button>
+                            </div>
+                          </div>
+                        
+                        )}
+                        </div>
+                      
+                    ))
+                  )}
+                </div>
+
+                          </div>
           ) : activeTab === "special-education" ? (
             <div className="max-w-6xl mx-auto p-6">
               <h2 className="text-2xl font-bold text-[#170F49] mb-6 pb-4 border-b border-[#E38B52]/20 flex items-center">
