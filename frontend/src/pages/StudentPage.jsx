@@ -1108,18 +1108,31 @@ const addCellToColumn = (columnKey) => {
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 20;
-    let y = 20;
+    let y = 15;
   
-    // Header
+    // Add logo at top left
+    const logoWidth = 35;
+    const logoHeight = 35;
+    try {
+      pdf.addImage(schoolLogo, "PNG", margin, y, logoWidth, logoHeight);
+    } catch (e) {
+      // Retry with JPEG format
+      try {
+        pdf.addImage(schoolLogo, "JPEG", margin, y, logoWidth, logoHeight);
+      } catch (err) {
+        console.warn("Could not add logo to PDF:", err);
+      }
+    }
+  
+    // Header with month name (positioned to right of logo)
     pdf.setFontSize(18);
     pdf.setFont("helvetica", "bold");
-    pdf.text("TRIMESTER REPORT", pageWidth / 2, y, { align: "center" });
-    y += 8;
-    pdf.setFontSize(12);
-    pdf.setFont("helvetica", "normal");
-    const monthLabel = iepData.selectedMonth ? `${iepData.selectedMonth} ${selectedYear}` : "N/A";
-    pdf.text(`Individual Education Program (IEP) — ${monthLabel}`, margin, y);
-    y += 10;
+    const monthName = iepData.selectedMonth ? iepData.selectedMonth.toUpperCase() : "N/A";
+    pdf.text("TRIMESTER REPORT", pageWidth / 2, y + 14, { align: "center" });
+    pdf.text(`OF ${monthName}`, pageWidth / 2, y + 22, { align: "center" });
+    
+    // Move y past logo and title
+    y = 65;
   
     // Student info row
     pdf.setFontSize(11);
@@ -1194,40 +1207,53 @@ const addCellToColumn = (columnKey) => {
     pdf.text(iepLines, margin, y);
     y += iepLines.length * 5 + 8;
   
-    // Remarks
+    // Remarks section with box
     pdf.setFont("helvetica", "bold");
-    pdf.text("Remarks:", margin, y);
+    pdf.setFontSize(11);
+    pdf.text("REMARKS", margin, y);
     y += 8;
     pdf.setFont("helvetica", "normal");
-    const remarksLines = pdf.splitTextToSize(iepData.remarks || "", pageWidth - margin * 2);
-    pdf.text(remarksLines, margin, y);
-    y += remarksLines.length * 5 + 16;
+    pdf.setFontSize(10);
+    
+    // Draw box for remarks
+    const remarksBoxHeight = 30;
+    pdf.rect(margin, y, pageWidth - margin * 2, remarksBoxHeight);
+    
+    // Add remarks text inside the box
+    const remarksLines = pdf.splitTextToSize(iepData.remarks || "", pageWidth - margin * 2 - 4);
+    if (remarksLines.length > 0) {
+      pdf.text(remarksLines, margin + 2, y + 6);
+    }
+    
+    y += remarksBoxHeight + 8;
   
-    // Signatures
-    if (y + 40 > pageHeight - 40) {
+    // Signatures section
+    if (y + 50 > pageHeight - 40) {
       pdf.addPage();
       y = 20;
     }
-    pdf.setFont("helvetica", "bold");
-    const sigW = (pageWidth - margin * 2) / 3;
-    pdf.text("Principal", margin, y);
-    pdf.text("Teacher", margin + sigW, y);
-    pdf.text("Parent/Guardian", margin + sigW * 2, y);
-    y += 20;
-    // Draw signature lines
-    pdf.line(margin, y, margin + sigW - 20, y);
-    pdf.line(margin + sigW, y, margin + sigW * 2 - 20, y);
-    pdf.line(margin + sigW * 2, y, margin + sigW * 3 - 20, y);
-    y += 6;
-  
-    // Insert actual signature names if present
+    y += 12;
     pdf.setFont("helvetica", "normal");
-    if (iepData.signatures.principal) pdf.text(String(iepData.signatures.principal), margin, y + 4);
-    if (iepData.signatures.teacher) pdf.text(String(iepData.signatures.teacher), margin + sigW, y + 4);
-    if (iepData.signatures.parent) pdf.text(String(iepData.signatures.parent), margin + sigW * 2, y + 4);
+    pdf.setFontSize(10);
+    const sigW = (pageWidth - margin * 2) / 3;
+    
+    // Draw signature lines - three equal columns
+    const lineY = y;
+    const lineLength = sigW - 10;
+    pdf.line(margin + 5, lineY, margin + 5 + lineLength, lineY);
+    pdf.line(margin + sigW + 5, lineY, margin + sigW + 5 + lineLength, lineY);
+    pdf.line(margin + 2 * sigW + 5, lineY, margin + 2 * sigW + 5 + lineLength, lineY);
+    
+    // Labels below signature lines
+    y = lineY + 6;
+    pdf.setFontSize(9);
+    pdf.text("Signature of the Principal", margin + sigW / 2, y, { align: "center" });
+    pdf.text("Signature of the Teacher", margin + sigW + sigW / 2, y, { align: "center" });
+    pdf.text("Signature of the Parent", margin + 2 * sigW + sigW / 2, y, { align: "center" });
   
     // Save
-    const fileName = `IEP_Report_${(student?.name || "student").replace(/\s+/g, "_")}_${monthLabel}.pdf`;
+    const fileMonthLabel = `${monthName}_${selectedYear}`;
+    const fileName = `IEP_Report_${(student?.name || "student").replace(/\s+/g, "_")}_${fileMonthLabel}.pdf`;
     pdf.save(fileName);
   };
 
