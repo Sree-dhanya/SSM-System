@@ -705,6 +705,10 @@ const StudentPage = () => {
   const [sendingToParent, setSendingToParent] = useState(false);
   const [sentToParent, setSentToParent] = useState(false);
 
+  // Stored AI Summaries - for viewing later
+  const [generatedSummaries, setGeneratedSummaries] = useState([]);
+  const [expandedGeneratedSummaryId, setExpandedGeneratedSummaryId] = useState(null);
+
   // IEP Report state
   const [iepData, setIepData] = useState({
     selectedMonth: "",
@@ -826,6 +830,20 @@ useEffect(() => {
     }
   } catch (e) {
     console.error("Failed to load IEPs by month:", e);
+  }
+}, [id]);
+
+// Load AI summaries from localStorage on mount
+useEffect(() => {
+  const summariesKey = `ai_summaries_student_${id}`;
+  try {
+    const stored = localStorage.getItem(summariesKey);
+    if (stored) {
+      const summaries = JSON.parse(stored);
+      setGeneratedSummaries(Array.isArray(summaries) ? summaries : []);
+    }
+  } catch (e) {
+    console.error("Failed to load AI summaries from localStorage:", e);
   }
 }, [id]);
 
@@ -1090,18 +1108,31 @@ const addCellToColumn = (columnKey) => {
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 20;
-    let y = 20;
+    let y = 15;
   
-    // Header
+    // Add logo at top left
+    const logoWidth = 35;
+    const logoHeight = 35;
+    try {
+      pdf.addImage(schoolLogo, "PNG", margin, y, logoWidth, logoHeight);
+    } catch (e) {
+      // Retry with JPEG format
+      try {
+        pdf.addImage(schoolLogo, "JPEG", margin, y, logoWidth, logoHeight);
+      } catch (err) {
+        console.warn("Could not add logo to PDF:", err);
+      }
+    }
+  
+    // Header with month name (positioned to right of logo)
     pdf.setFontSize(18);
     pdf.setFont("helvetica", "bold");
-    pdf.text("TRIMESTER REPORT", pageWidth / 2, y, { align: "center" });
-    y += 8;
-    pdf.setFontSize(12);
-    pdf.setFont("helvetica", "normal");
-    const monthLabel = iepData.selectedMonth ? `${iepData.selectedMonth} ${selectedYear}` : "N/A";
-    pdf.text(`Individual Education Program (IEP) — ${monthLabel}`, margin, y);
-    y += 10;
+    const monthName = iepData.selectedMonth ? iepData.selectedMonth.toUpperCase() : "N/A";
+    pdf.text("TRIMESTER REPORT", pageWidth / 2, y + 14, { align: "center" });
+    pdf.text(`OF ${monthName}`, pageWidth / 2, y + 22, { align: "center" });
+    
+    // Move y past logo and title
+    y = 65;
   
     // Student info row
     pdf.setFontSize(11);
@@ -1176,40 +1207,53 @@ const addCellToColumn = (columnKey) => {
     pdf.text(iepLines, margin, y);
     y += iepLines.length * 5 + 8;
   
-    // Remarks
+    // Remarks section with box
     pdf.setFont("helvetica", "bold");
-    pdf.text("Remarks:", margin, y);
+    pdf.setFontSize(11);
+    pdf.text("REMARKS", margin, y);
     y += 8;
     pdf.setFont("helvetica", "normal");
-    const remarksLines = pdf.splitTextToSize(iepData.remarks || "", pageWidth - margin * 2);
-    pdf.text(remarksLines, margin, y);
-    y += remarksLines.length * 5 + 16;
+    pdf.setFontSize(10);
+    
+    // Draw box for remarks
+    const remarksBoxHeight = 30;
+    pdf.rect(margin, y, pageWidth - margin * 2, remarksBoxHeight);
+    
+    // Add remarks text inside the box
+    const remarksLines = pdf.splitTextToSize(iepData.remarks || "", pageWidth - margin * 2 - 4);
+    if (remarksLines.length > 0) {
+      pdf.text(remarksLines, margin + 2, y + 6);
+    }
+    
+    y += remarksBoxHeight + 8;
   
-    // Signatures
-    if (y + 40 > pageHeight - 40) {
+    // Signatures section
+    if (y + 50 > pageHeight - 40) {
       pdf.addPage();
       y = 20;
     }
-    pdf.setFont("helvetica", "bold");
-    const sigW = (pageWidth - margin * 2) / 3;
-    pdf.text("Principal", margin, y);
-    pdf.text("Teacher", margin + sigW, y);
-    pdf.text("Parent/Guardian", margin + sigW * 2, y);
-    y += 20;
-    // Draw signature lines
-    pdf.line(margin, y, margin + sigW - 20, y);
-    pdf.line(margin + sigW, y, margin + sigW * 2 - 20, y);
-    pdf.line(margin + sigW * 2, y, margin + sigW * 3 - 20, y);
-    y += 6;
-  
-    // Insert actual signature names if present
+    y += 12;
     pdf.setFont("helvetica", "normal");
-    if (iepData.signatures.principal) pdf.text(String(iepData.signatures.principal), margin, y + 4);
-    if (iepData.signatures.teacher) pdf.text(String(iepData.signatures.teacher), margin + sigW, y + 4);
-    if (iepData.signatures.parent) pdf.text(String(iepData.signatures.parent), margin + sigW * 2, y + 4);
+    pdf.setFontSize(10);
+    const sigW = (pageWidth - margin * 2) / 3;
+    
+    // Draw signature lines - three equal columns
+    const lineY = y;
+    const lineLength = sigW - 10;
+    pdf.line(margin + 5, lineY, margin + 5 + lineLength, lineY);
+    pdf.line(margin + sigW + 5, lineY, margin + sigW + 5 + lineLength, lineY);
+    pdf.line(margin + 2 * sigW + 5, lineY, margin + 2 * sigW + 5 + lineLength, lineY);
+    
+    // Labels below signature lines
+    y = lineY + 6;
+    pdf.setFontSize(9);
+    pdf.text("Signature of the Principal", margin + sigW / 2, y, { align: "center" });
+    pdf.text("Signature of the Teacher", margin + sigW + sigW / 2, y, { align: "center" });
+    pdf.text("Signature of the Parent", margin + 2 * sigW + sigW / 2, y, { align: "center" });
   
     // Save
-    const fileName = `IEP_Report_${(student?.name || "student").replace(/\s+/g, "_")}_${monthLabel}.pdf`;
+    const fileMonthLabel = `${monthName}_${selectedYear}`;
+    const fileName = `IEP_Report_${(student?.name || "student").replace(/\s+/g, "_")}_${fileMonthLabel}.pdf`;
     pdf.save(fileName);
   };
 
@@ -1538,6 +1582,30 @@ const addCellToColumn = (columnKey) => {
           const normalizedData = { ...parsed, summary: normalizedSummary };
           setAiAnalysis(normalizedData);
           setAiSummary(normalizedSummary || "(No summary returned)");
+          
+          // Save to generated summaries for viewing later
+          const newSummary = {
+            id: Date.now(),
+            summary: normalizedSummary,
+            dateRange: {
+              start: fromDate || "All dates",
+              end: toDate || "Current",
+            },
+            therapyType: selectedTherapyType || "All therapies",
+            reportCount: parsed?.used_reports || 0,
+            generatedAt: new Date().toLocaleString(),
+          };
+          setGeneratedSummaries(prev => {
+            const updated = [newSummary, ...prev];
+            // Also save to localStorage
+            const summariesKey = `ai_summaries_student_${id}`;
+            try {
+              localStorage.setItem(summariesKey, JSON.stringify(updated));
+            } catch (e) {
+              console.error("Failed to save AI summaries to localStorage:", e);
+            }
+            return updated;
+          });
           return;
         }
 
@@ -3458,6 +3526,18 @@ const isPhaseUnlocked = (table, targetPhase) => {
       }
     }; // --- PDF Header ---
 
+    // Add school logo to top-left
+    const logoWidth = 30;
+    const logoHeight = 30;
+    const logoX = leftCol;
+    const logoY = 10;
+    try {
+      doc.addImage(schoolLogo, "PNG", logoX, logoY, logoWidth, logoHeight);
+    } catch (e) {
+      console.error("Error adding logo to PDF:", e);
+    }
+
+    // Student photo on top-right
     const imgWidth = 40;
     const imgHeight = 50;
     const imgX = pageWidth - imgWidth - leftCol;
@@ -3661,6 +3741,17 @@ const isPhaseUnlocked = (table, targetPhase) => {
     };
 
     // --- PDF Generation Starts Here ---
+
+    // Add school logo to top-left (moved slightly higher)
+    const logoWidth = 30;
+    const logoHeight = 30;
+    const logoX = leftMargin;
+    const logoY = 5; // moved up for Case Record PDF
+    try {
+      doc.addImage(schoolLogo, "PNG", logoX, logoY, logoWidth, logoHeight);
+    } catch (e) {
+      console.error("Error adding logo to PDF:", e);
+    }
 
     // Header
     doc.setFontSize(18);
@@ -3943,12 +4034,30 @@ const isPhaseUnlocked = (table, targetPhase) => {
         y += 2; // Extra spacing
       };
 
+      // Add school logo to top-right
+      const logoWidth = 30;
+      const logoHeight = 30;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const logoX = pageWidth - logoWidth - rightMargin;
+      const logoY = 10;
+      try {
+        doc.addImage(schoolLogo, "JPEG", logoX, logoY, logoWidth, logoHeight);
+      } catch (logoError) {
+        console.error("Error adding logo to PDF:", logoError);
+        // Try again without format specification
+        try {
+          doc.addImage(schoolLogo, logoX, logoY, logoWidth, logoHeight);
+        } catch (e2) {
+          console.error("Second attempt to add logo failed:", e2);
+        }
+      }
+
       // Header
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text(
         "THERAPY SUMMARY REPORT",
-        doc.internal.pageSize.getWidth() / 2,
+        pageWidth / 2,
         y,
         { align: "center" },
       );
@@ -4684,6 +4793,23 @@ const isPhaseUnlocked = (table, targetPhase) => {
                             const marginRight = 15;
                             let yPosition = 20;
 
+                            // Add school logo to top-right
+                            const logoWidth = 30;
+                            const logoHeight = 30;
+                            const logoX = pageWidth - logoWidth - marginRight;
+                            const logoY = 10;
+                            try {
+                              pdf.addImage(schoolLogo, "JPEG", logoX, logoY, logoWidth, logoHeight);
+                            } catch (logoError) {
+                              console.error("Error adding logo to PDF:", logoError);
+                              // Try again without format specification
+                              try {
+                                pdf.addImage(schoolLogo, logoX, logoY, logoWidth, logoHeight);
+                              } catch (e2) {
+                                console.error("Second attempt to add logo failed:", e2);
+                              }
+                            }
+
                             // Title
                             pdf.setFontSize(18);
                             pdf.setFont(undefined, "bold");
@@ -5260,6 +5386,73 @@ const isPhaseUnlocked = (table, targetPhase) => {
                               ⚠️ Analysis was truncated due to content length.
                               Consider filtering by date range for more detailed
                               analysis.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Previously Generated Summaries Section */}
+                    {generatedSummaries.length > 0 && (
+                      <div className="mt-8 space-y-3">
+                        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                          <svg className="w-5 h-5 text-[#E38B52]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Previously Generated Summaries
+                        </h3>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {generatedSummaries.slice(0, visibleCount).map((summary) => (
+                            <details key={summary.id} className="bg-white rounded-lg border p-4 shadow-sm">
+                              <summary className="flex justify-between items-center cursor-pointer">
+                                <div>
+                                  <div className="text-sm text-[#6F6C90]">{summary.generatedAt}</div>
+                                  <div className="text-lg font-semibold text-[#170F49]">AI Summary</div>
+                                  <div className="text-xs text-[#6F6C90]">
+                                    Date Range: {summary.dateRange.start} to {summary.dateRange.end}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-[#6F6C90] mr-2">{summary.reportCount} reports</span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      // delete
+                                      setGeneratedSummaries(prev => {
+                                        const filtered = prev.filter(s => s.id !== summary.id);
+                                        const summariesKey = `ai_summaries_student_${id}`;
+                                        try {
+                                          localStorage.setItem(summariesKey, JSON.stringify(filtered));
+                                        } catch (err) {
+                                          console.error("Failed to update localStorage:", err);
+                                        }
+                                        return filtered;
+                                      });
+                                    }}
+                                    className="px-2 py-1 bg-red-50 border border-red-400 text-red-600 text-xs rounded-lg hover:bg-red-400 hover:text-white transition-all duration-200"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </summary>
+
+                              <div className="mt-4 text-sm text-[#333] space-y-3">
+                                <div className="text-xs text-[#6F6C90] font-semibold">Summary</div>
+                                <div className="whitespace-pre-wrap text-sm text-gray-700">{summary.summary}</div>
+                                <div className="text-xs text-[#6F6C90]">Generated: {summary.generatedAt}</div>
+                                <div className="text-xs text-[#6F6C90]">Therapy: {summary.therapyType}</div>
+                              </div>
+                            </details>
+                          ))}
+                          {generatedSummaries.length > visibleCount && (
+                            <div className="text-center mt-4">
+                              <button
+                                onClick={() => setVisibleCount((v) => v + 5)}
+                                className="px-4 py-2 bg-[#E38B52] text-white rounded-md"
+                              >
+                                Load more
+                              </button>
                             </div>
                           )}
                         </div>
