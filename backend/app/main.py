@@ -23,7 +23,8 @@ else:
         "http://localhost:3000",  # React frontend
         "http://localhost:5173",
         "https://therapinc.in",
-        "https://www.therapinc.in",  # Vite frontend (if using Vite)
+        "https://www.therapinc.in",
+        "https://therapinc.stmarthasspecialschool.com"  # Vite frontend (if using Vite)
     ]
 
 app.add_middleware(
