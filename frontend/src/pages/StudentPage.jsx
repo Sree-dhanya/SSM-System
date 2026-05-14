@@ -1682,6 +1682,7 @@ const addCellToColumn = (columnKey) => {
   };
 
   const [editMode, setEditMode] = useState(false);
+  const [teacherUsers, setTeacherUsers] = useState([]);
   const [editData, setEditData] = useState(null);
   const [aadharEditError, setAadharEditError] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
@@ -2590,6 +2591,54 @@ const addCellToColumn = (columnKey) => {
       setReportsLoading(false);
     }
   };
+
+  useEffect(() => {
+  const fetchTeacherUsernames = async () => {
+    try {
+
+      const baseUrl =
+        process.env.REACT_APP_API_BASE_URL ||
+        "http://localhost:8000";
+
+      const token = localStorage.getItem("token");
+
+      const res = await axios.get(
+        `${baseUrl}/api/v1/teachers/`,
+        {
+          headers: token
+            ? { Authorization: `Bearer ${token}` }
+            : {},
+        }
+      );
+
+      // Convert emails to usernames
+      const usernames = (res.data || [])
+        .map((t) =>
+          (t.email || "")
+            .split("@")[0]
+            .trim()
+            .toLowerCase()
+        )
+        .filter((u) => u);
+
+      // Remove duplicates + sort
+      const unique = Array.from(new Set(usernames)).sort();
+
+      setTeacherUsers(unique);
+
+    } catch (err) {
+
+      console.error(err);
+
+      setTeacherUsers([]);
+    }
+  };
+
+  if (activeTab === "student-details") {
+    fetchTeacherUsernames();
+  }
+
+}, [activeTab]);
 
   useEffect(() => {
     if (id) {
@@ -5965,16 +6014,52 @@ const isPhaseUnlocked = (table, targetPhase) => {
                     <div key={field.key}>
                       <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
                       {editMode ? (
-                        <input
-                          type={field.type || "text"}
-                          name={field.key}
-                          value={editData?.[field.key] || ""}
-                          onChange={handleEditChange}
-                          className="input-edit"
-                        />
-                      ) : (
-                        <p className="text-[#170F49] font-medium">{student?.[field.key] || "N/A"}</p>
-                      )}
+
+  field.key === "classTeacher" ? (
+
+    <select
+      name="classTeacher"
+      value={editData?.classTeacher || ""}
+      onChange={(e) =>
+        setEditData({
+          ...editData,
+          classTeacher: e.target.value,
+        })
+      }
+      className="input-edit"
+    >
+
+      <option value="">
+        -- Select Teacher --
+      </option>
+
+      {teacherUsers.map((u) => (
+        <option key={u} value={u}>
+          {u}
+        </option>
+      ))}
+
+    </select>
+
+  ) : (
+
+    <input
+      type={field.type || "text"}
+      name={field.key}
+      value={editData?.[field.key] || ""}
+      onChange={handleEditChange}
+      className="input-edit"
+    />
+
+  )
+
+) : (
+
+  <p className="text-[#170F49] font-medium">
+    {student?.[field.key] || "N/A"}
+  </p>
+
+)}
                     </div>
                   ))}
                 </div>

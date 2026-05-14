@@ -67,12 +67,21 @@ const AddTeacher = () => {
     try {
       setErrors({});
       setIsSubmitting(true);
-      // Name is the only mandatory field.
-      if (!teacherData.name || !teacherData.name.trim()) {
-        alert('Name is required.');
-        setIsSubmitting(false);
-        return;
-      }
+      // Name and email are mandatory.
+if (!teacherData.name || !teacherData.name.trim()) {
+  alert('Name is required.');
+  setIsSubmitting(false);
+  return;
+}
+
+if (
+  !teacherData.email ||
+  !teacherData.email.includes('@')
+) {
+  alert('A valid email is required.');
+  setIsSubmitting(false);
+  return;
+}
 
       // If Aadhaar has been entered, block submit while inline validation is failing.
       if (aadharError) {
@@ -337,17 +346,22 @@ const AddTeacher = () => {
                 Email
               </label>
               <input
-                type="email"
-                name="email"
-                id="email"
-                value={teacherData.email}
-                onChange={handleInputChange}
-                placeholder="Enter Email"
-                className="w-full px-4 py-4 rounded-2xl border bg-white shadow-lg focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all placeholder:text-[#6F6C90]"
-                pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
-                onInvalid={e => e.target.setCustomValidity('Please enter a valid email address (username@domain.extension) with no spaces.')}
-                onInput={e => e.target.setCustomValidity('')}
-              />
+  type="email"
+  name="email"
+  id="email"
+  value={teacherData.email}
+  onChange={handleInputChange}
+  placeholder="Enter Email"
+  required
+  className="w-full px-4 py-4 rounded-2xl border bg-white shadow-lg focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all placeholder:text-[#6F6C90]"
+  pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
+  onInvalid={e =>
+    e.target.setCustomValidity(
+      'Please enter a valid email address (username@domain.extension) with no spaces.'
+    )
+  }
+  onInput={e => e.target.setCustomValidity('')}
+/>
               {errors.email && (<p className="text-red-500 text-xs mt-1">{errors.email}</p>)}
             </div>
 
