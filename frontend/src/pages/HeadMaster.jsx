@@ -75,6 +75,10 @@ const HeadMaster = () => {
   const [therapistSearch, setTherapistSearch] = useState("");
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
+  const [studentPage, setStudentPage] = useState(1);
+  const [studentLimit, setStudentLimit] = useState(50);
+  const [studentTotalPages, setStudentTotalPages] = useState(1);
+  const [studentTotal, setStudentTotal] = useState(0);
   const [therapists, setTherapists] = useState([]);
   const [therapistsLoading, setTherapistsLoading] = useState(false);
 
@@ -163,33 +167,20 @@ const HeadMaster = () => {
       setStudentsLoading(true);
       try {
         const params = {
-          page: 1,
-          page_size: 100,
+          page: studentPage,
+          limit: studentLimit,
         };
-        if (studentSearch && studentSearch.trim())
-          params.search = studentSearch.trim();
-        if (selectedClass && selectedClass !== "all")
-          params.class_name = selectedClass;
-        const { data } = await axios.get(`${API_BASE_URL}/api/v1/students/`, {
-          params,
-        });
-        const items = Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data)
-            ? data
-            : [];
-        console.debug("fetchStudents: raw items", items);
+        if (studentSearch && studentSearch.trim()) params.search = studentSearch.trim();
+        if (selectedClass && selectedClass !== "all") params.class_name = selectedClass;
+        const { data } = await axios.get(`${API_BASE_URL}/api/v1/students/`, { params });
+        const items = Array.isArray(data?.items) ? data.items : [];
+        // set pagination metadata if present
+        setStudentTotal(data?.total ?? 0);
+        setStudentTotalPages(data?.total_pages ?? data?.pages ?? 1);
+
         // Normalize photo key: accept either photo_url (snake_case) or photoUrl (camelCase)
-        const normalized = items.map((s) => {
-          console.log("Student:", s.name, "photo_url:", s.photo_url);
-          return {
-            ...s,
-            photo_url: s.photo_url || s.photoUrl || null,
-          };
-        });
-        const sortedStudents = [...normalized].sort((a, b) =>
-          (a.name || "").localeCompare(b.name || ""),
-        );
+        const normalized = items.map((s) => ({ ...s, photo_url: s.photo_url || s.photoUrl || null }));
+        const sortedStudents = [...normalized].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         setStudents(sortedStudents);
       } catch (error) {
         console.error("Error fetching students:", error);
@@ -200,7 +191,12 @@ const HeadMaster = () => {
     if (activeTab === "students") {
       fetchStudents();
     }
-  }, [activeTab, studentSearch, selectedClass]);
+  }, [activeTab, studentSearch, selectedClass, studentPage, studentLimit]);
+
+  // Reset page when search or filter changes
+  useEffect(() => {
+    setStudentPage(1);
+  }, [studentSearch, selectedClass]);
 
   // Add this function to handle logout
   const handleLogout = () => {
@@ -485,6 +481,7 @@ const HeadMaster = () => {
                 <div className="particle-2"></div>
                 <div className="particle-3"></div>
               </div>
+              
             </div>
 
             {/* Students Tab */}
@@ -766,6 +763,38 @@ const HeadMaster = () => {
                     </div>
                   ))}
               </div>
+              {/* Pagination Controls - positioned below the student list */}
+              {!studentsLoading && students.length > 0 && (
+                <div className="flex items-center justify-center gap-4 mt-8 px-4 py-6 border-t border-gray-200">
+                  <button
+                    onClick={() => setStudentPage((p) => Math.max(1, p - 1))}
+                    disabled={studentPage <= 1}
+                    className={`px-4 py-2 rounded-lg border border-[#E38B52] transition-all font-medium ${
+                      studentPage <= 1
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-white text-[#E38B52] hover:bg-[#E38B52] hover:text-white'
+                    }`}
+                  >
+                    ◀ Previous
+                  </button>
+
+                  <div className="text-sm text-[#6F6C8F] font-medium whitespace-nowrap">
+                    Page <span className="font-bold">{studentPage}</span> of <span className="font-bold">{studentTotalPages}</span> — <span className="font-bold">{studentTotal}</span> students
+                  </div>
+
+                  <button
+                    onClick={() => setStudentPage((p) => Math.min(studentTotalPages || p + 1, p + 1))}
+                    disabled={studentPage >= studentTotalPages}
+                    className={`px-4 py-2 rounded-lg border border-[#E38B52] transition-all font-medium ${
+                      studentPage >= studentTotalPages
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'bg-white text-[#E38B52] hover:bg-[#E38B52] hover:text-white'
+                    }`}
+                  >
+                    Next ▶
+                  </button>
+                </div>
+              )}
             </>
           ) : activeTab === "teachers" ? (
             <>
