@@ -6,6 +6,15 @@ from typing import List, Optional, Any, Dict
 # Renamed import to avoid variable name conflicts
 from app.crud.student import student as crud_student
 from app.schemas.student import Student, StudentCreate, StudentUpdate
+from pydantic import BaseModel
+
+
+class StudentsPage(BaseModel):
+    items: List[Student]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
 from app.db.session import get_db
 from app.utils.pagination import PageParams, Page
 from app.api.deps import get_current_active_user
@@ -16,7 +25,7 @@ router = APIRouter()
 # --------------------------------------------------------------------
 # ▼▼▼ THIS IS THE FULLY MODIFIED FUNCTION ▼▼▼
 # --------------------------------------------------------------------
-@router.get("/")
+@router.get("/", response_model=StudentsPage)
 def read_students(
     db: Session = Depends(get_db),
     pagination: PageParams = Depends(),
@@ -29,7 +38,7 @@ def read_students(
     students_from_db = crud_student.get_filtered(
         db,
         skip=pagination.skip,
-        limit=pagination.page_size,
+        limit=pagination.limit,
         search=search,
         class_name=class_name
     )
@@ -74,13 +83,13 @@ def read_students(
 
     total = query.count()
 
-    # Return as dict to avoid Pydantic validation
-    return {
-        "items": students_with_photos,
-        "total": total,
-        "page": pagination.page,
-        "page_size": pagination.page_size
-    }
+    # Build a Page. Some deployment environments have trouble validating
+    # Pydantic generics (Page[T]). Return a plain dict reliably by using
+    # `.dict()` when available, otherwise return the dict directly.
+    page = Page.create(items=students_with_photos, total=total, params=pagination)
+    if hasattr(page, "dict"):
+        return page.dict()
+    return page
 # --------------------------------------------------------------------
 # ▲▲▲ END OF MODIFIED FUNCTION ▲▲▲
 # --------------------------------------------------------------------

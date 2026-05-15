@@ -672,7 +672,7 @@ const TherapistPage = () => {
                       <option value="Occupational Therapy">
                         Occupational Therapy
                       </option>
-                      <option value="Physical Therapy">Physical Therapy</option>
+                      <option value="Physiotherapy">Physiotherapy</option>
                       <option value="Behavioral Therapy">
                         Behavioral Therapy
                       </option>

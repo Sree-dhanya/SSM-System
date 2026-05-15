@@ -90,29 +90,43 @@ const getTherapySections = (therapyType) => {
       },
     },
     "Occupational Therapy": {
-      fine_motor: { checked: false, notes: "", label: "Fine Motor Skills" },
-      sensory_processing: {
-        checked: false,
-        notes: "",
-        label: "Sensory Processing & Integration",
-      },
-      visual_motor: {
-        checked: false,
-        notes: "",
-        label: "Visual-Motor Integration Skills",
-      },
-      daily_living: {
-        checked: false,
-        notes: "",
-        label: "Activities of Daily Living (ADL)",
-      },
-      handwriting: {
-        checked: false,
-        notes: "",
-        label: "Handwriting & Pre-Academic Skills",
-      },
-    },
-    "Physical Therapy": {
+  daily_living_adl: {
+    checked: false,
+    notes: "",
+    label: "Activities of Daily Living (ADL)",
+  },
+  sensory_integration_modulation: {
+    checked: false,
+    notes: "",
+    label: "Sensory Integration and Modulation",
+  },
+  neuro_cognitive_rehabilitation: {
+    checked: false,
+    notes: "",
+    label: "Neuro-Cognitive Rehabilitation",
+  },
+  fine_motor_hand_function: {
+    checked: false,
+    notes: "",
+    label: "Fine Motor and Hand Function",
+  },
+  gross_motor_coordination_balance: {
+    checked: false,
+    notes: "",
+    label: "Gross Motor Coordination and Balance",
+  },
+  psychosocial_behavioral_regulation: {
+    checked: false,
+    notes: "",
+    label: "Psychosocial and Behavioral Regulation",
+  },
+  handwriting_pre_academics: {
+    checked: false,
+    notes: "",
+    label: "Handwriting and Pre-Academics",
+  },
+},
+    "Physiotherapy": {
       gross_motor: { checked: false, notes: "", label: "Gross Motor Skills" },
       balance_postural: {
         checked: false,
@@ -171,28 +185,43 @@ const TherapistDashboard = () => {
         },
       },
       "Occupational Therapy": {
-        fine_motor_skills: {
-          checked: false,
-          notes: "",
-          label: "Fine Motor Skills",
-        },
-        gross_motor_skills: {
-          checked: false,
-          notes: "",
-          label: "Gross Motor Skills",
-        },
-        daily_living_activities: {
-          checked: false,
-          notes: "",
-          label: "Daily Living Activities",
-        },
-        sensory_integration: {
-          checked: false,
-          notes: "",
-          label: "Sensory Integration",
-        },
-      },
-      "Physical Therapy": {
+  daily_living_adl: {
+    checked: false,
+    notes: "",
+    label: "Activities of Daily Living (ADL)",
+  },
+  sensory_integration_modulation: {
+    checked: false,
+    notes: "",
+    label: "Sensory Integration and Modulation",
+  },
+  neuro_cognitive_rehabilitation: {
+    checked: false,
+    notes: "",
+    label: "Neuro-Cognitive Rehabilitation",
+  },
+  fine_motor_hand_function: {
+    checked: false,
+    notes: "",
+    label: "Fine Motor and Hand Function",
+  },
+  gross_motor_coordination_balance: {
+    checked: false,
+    notes: "",
+    label: "Gross Motor Coordination and Balance",
+  },
+  psychosocial_behavioral_regulation: {
+    checked: false,
+    notes: "",
+    label: "Psychosocial and Behavioral Regulation",
+  },
+  handwriting_pre_academics: {
+    checked: false,
+    notes: "",
+    label: "Handwriting and Pre-Academics",
+  },
+},
+      "Physiotherapy": {
         strength_endurance: {
           checked: false,
           notes: "",
@@ -245,6 +274,11 @@ const TherapistDashboard = () => {
     getGoalsForTherapyType("Occupational Therapy"),
   );
   const [progressLevel, setProgressLevel] = useState("Excellent");
+
+  const [presentComplaints, setPresentComplaints] = useState("");
+  const [currentObservation, setCurrentObservation] = useState("");
+  const [assessmentDone, setAssessmentDone] = useState("");
+  const [provisionalDiagnosis, setProvisionalDiagnosis] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -883,6 +917,10 @@ const TherapistDashboard = () => {
                     student_id: selectedStudent.id,
                     report_date: reportDate,
                     therapy_type: therapyType,
+                    present_complaints: presentComplaints?.trim() || null,
+                    current_observation: currentObservation?.trim() || null,
+                    assessment_done: assessmentDone?.trim() || null,
+                    provisional_diagnosis: provisionalDiagnosis?.trim() || null,
                     goals_achieved: goalsAchieved,
                     progress_level: progressLevel,
                   };
@@ -903,6 +941,10 @@ const TherapistDashboard = () => {
                   setTherapyType(defaultType);
                   setGoalsAchieved(getTherapySections(defaultType));
                   setProgressLevel("Excellent");
+                  setPresentComplaints("");
+                  setCurrentObservation("");
+                  setAssessmentDone("");
+                  setProvisionalDiagnosis("");
                   setShowReportDialog(false);
                   setShowSuccessModal(true);
 
@@ -949,8 +991,56 @@ const TherapistDashboard = () => {
                   <option value="Occupational Therapy">
                     Occupational Therapy
                   </option>
-                  <option value="Physical Therapy">Physical Therapy</option>
+                  <option value="Physiotherapy">Physiotherapy</option>
                 </select>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-[#170F49] font-medium mb-1">
+                  Present Complaints
+                </label>
+                <textarea
+                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#E38B52] resize-none"
+                  rows="2"
+                  value={presentComplaints}
+                  onChange={(e) => setPresentComplaints(e.target.value)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-[#170F49] font-medium mb-1">
+                  Current Observation
+                </label>
+                <textarea
+                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#E38B52] resize-none"
+                  rows="2"
+                  value={currentObservation}
+                  onChange={(e) => setCurrentObservation(e.target.value)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-[#170F49] font-medium mb-1">
+                  Assessment Done
+                </label>
+                <textarea
+                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#E38B52] resize-none"
+                  rows="2"
+                  value={assessmentDone}
+                  onChange={(e) => setAssessmentDone(e.target.value)}
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-[#170F49] font-medium mb-1">
+                  Provisional Diagnosis
+                </label>
+                <textarea
+                  className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#E38B52] resize-none"
+                  rows="2"
+                  value={provisionalDiagnosis}
+                  onChange={(e) => setProvisionalDiagnosis(e.target.value)}
+                />
               </div>
 
               <div className="mb-4">

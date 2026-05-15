@@ -13,9 +13,35 @@ class GoalItem(BaseModel):
 class TherapyReportBase(BaseModel):
     report_date: date
     therapy_type: Optional[str] = None
+    
+    # New Clinical Fields
+    present_complaints: Optional[str] = None
+    current_observation: Optional[str] = None
+    assessment_done: Optional[str] = None
+    provisional_diagnosis: Optional[str] = None
+    
     progress_notes: Optional[str] = None
     goals_achieved: Optional[Dict[str, Any]] = None
     progress_level: Optional[str] = None
+
+    @field_validator(
+        'therapy_type',
+        'present_complaints',
+        'current_observation',
+        'assessment_done',
+        'provisional_diagnosis',
+        'progress_notes',
+        'progress_level',
+        mode='before',
+    )
+    @classmethod
+    def normalize_optional_text(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            normalized = v.strip()
+            return normalized or None
+        return v
 
     @field_validator('goals_achieved', mode='before')
     @classmethod
