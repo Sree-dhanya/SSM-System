@@ -1763,7 +1763,69 @@ const addCellToColumn = (columnKey) => {
   const [documentUploading, setDocumentUploading] = useState(false);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [uploadedDocTypes, setUploadedDocTypes] = useState({});
+    const [showDocumentDeleteConfirm, setShowDocumentDeleteConfirm] = useState(false);
+  const [pendingDocumentDelete, setPendingDocumentDelete] = useState(null);
+    const SPECIAL_DOC_TYPES = ["aadhar", "birth_certificate", "ration_card"];
+        
+    
+    const DOCUMENT_TYPE_LABELS = {
+      aadhar: "Aadhar",
+      birth_certificate: "Birth Certificate",
+      disability_certificate: "Disability Certificate",
+      ration_card: "Ration Card",
+      unique_disability: "UDID Card",
+      hospital_assessment: "Medical Reports",
+      passbook: "Passbook",
+      nish_assessment: "Assessment Report",
+    };
+  const DOCUMENT_UPLOAD_RESET_MS = 3000;
+  const documentUploadTimersRef = useRef({});
+  
+  const clearDocumentUploadTimer = (docTypeId) => {
+    const timer = documentUploadTimersRef.current[docTypeId];
+    if (timer) {
+      clearTimeout(timer);
+      delete documentUploadTimersRef.current[docTypeId];
+    }
+  };
+  
+  const syncUploadedDocTypesFromDocuments = (docs = []) => {
+    const next = {};
+    docs.forEach((doc) => {
+      const docTypeId = doc.documentType || doc.document_type || doc.type;
+      if (docTypeId && SPECIAL_DOC_TYPES.includes(docTypeId)) {
+        next[docTypeId] = true;
+      }
+    });
+    setUploadedDocTypes(next);
+  };
   const documentInputRef = useRef(null);
+
+    const [uploadedDocumentsByType, setUploadedDocumentsByType] = useState({});
+  
+  const getDocumentTypeId = (doc) =>
+    doc?.documentType || doc?.document_type || doc?.type || "";
+  
+  const syncUploadedDocumentsByType = (docs = []) => {
+    const next = {};
+  
+    docs.forEach((doc) => {
+      const typeId = getDocumentTypeId(doc);
+      if (!typeId) return;
+  
+      if (!next[typeId]) next[typeId] = [];
+      next[typeId].push(doc);
+    });
+  
+    setUploadedDocumentsByType(next);
+  
+    setUploadedDocTypes(
+      SPECIAL_DOC_TYPES.reduce((acc, typeId) => {
+        acc[typeId] = !!next[typeId]?.length;
+        return acc;
+      }, {}),
+    );
+  };
 
   // Toast notification state
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
@@ -2261,7 +2323,7 @@ const addCellToColumn = (columnKey) => {
     }
   };
 
-  const fetchDocuments = async () => {
+    const fetchDocuments = async () => {
     setDocumentsLoading(true);
     try {
       const baseUrl =
@@ -2270,15 +2332,20 @@ const addCellToColumn = (columnKey) => {
       const config = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : {};
-
+  
       const res = await axios.get(
         `${baseUrl}/api/v1/students/${id}/documents`,
         config,
       );
-      setDocuments(res.data.documents || []);
+  
+      const fetchedDocuments = res.data.documents || [];
+      setDocuments(fetchedDocuments);
+      syncUploadedDocTypesFromDocuments(fetchedDocuments);
+      return fetchedDocuments;
     } catch (error) {
       console.error("Error fetching documents:", error);
       setDocuments([]);
+      return [];
     } finally {
       setDocumentsLoading(false);
     }
@@ -2363,11 +2430,16 @@ const addCellToColumn = (columnKey) => {
     }
   };
 
-  const handleDeleteDocument = async (documentId, documentName) => {
-    if (!window.confirm(`Are you sure you want to delete "${documentName}"?`)) {
-      return;
-    }
-
+    const confirmDeleteDocument = (documentId, documentName, documentTypeId) => {
+    setPendingDocumentDelete({ documentId, documentName, documentTypeId });
+    setShowDocumentDeleteConfirm(true);
+  };
+  
+    const handleDeleteDocument = async () => {
+    if (!pendingDocumentDelete) return;
+  
+    const { documentId, documentName, documentTypeId } = pendingDocumentDelete;
+  
     try {
       const baseUrl =
         process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
@@ -2375,22 +2447,39 @@ const addCellToColumn = (columnKey) => {
       const config = token
         ? { headers: { Authorization: `Bearer ${token}` } }
         : {};
-
+  
       await axios.delete(
         `${baseUrl}/api/v1/students/${id}/documents/${documentId}`,
         config,
       );
+  
+      setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+      setUploadedDocumentsByType((prev) => {
+        const next = { ...prev };
+        next[documentTypeId] = (next[documentTypeId] || []).filter(
+          (doc) => doc.id !== documentId,
+        );
+        if (next[documentTypeId]?.length === 0) delete next[documentTypeId];
+        return next;
+      });
+  
+      if (SPECIAL_DOC_TYPES.includes(documentTypeId)) {
+        clearDocumentUploadTimer(documentTypeId);
+        setUploadedDocTypes((prev) => ({ ...prev, [documentTypeId]: false }));
+      }
+  
       showToast(`Document "${documentName}" deleted successfully!`, "success");
-
-      // Refresh documents list
       await fetchDocuments();
     } catch (error) {
       console.error("Error deleting document:", error);
       showToast("Failed to delete document.", "error");
+    } finally {
+      setShowDocumentDeleteConfirm(false);
+      setPendingDocumentDelete(null);
     }
   };
 
-  const handleDocumentTypeUpload = async (file, docTypeId, docTypeLabel) => {
+    const handleDocumentTypeUpload = async (file, docTypeId, docTypeLabel) => {
     try {
       setDocumentUploading(true);
       const baseUrl =
@@ -2401,7 +2490,7 @@ const addCellToColumn = (columnKey) => {
       formData.append("documentType", docTypeId);
       formData.append("documentTypeLabel", docTypeLabel);
       formData.append("studentId", id);
-
+  
       const response = await axios.post(
         `${baseUrl}/api/v1/students/${id}/documents`,
         formData,
@@ -2412,12 +2501,54 @@ const addCellToColumn = (columnKey) => {
           },
         }
       );
-
-      if (response.status !== 200) throw new Error("Upload failed");
-
+  
+            if (response.status !== 200) throw new Error("Upload failed");
+      
       showToast(`${docTypeLabel} uploaded successfully`, "success");
+      
+      const fetchedDocuments = await fetchDocuments();
+      const realUploadedDoc =
+        (fetchedDocuments || [])
+          .slice()
+          .reverse()
+          .find(
+            (doc) =>
+              doc.name === file.name &&
+              Number(doc.file_size) === Number(file.size),
+          ) || null;
+      
+      if (!realUploadedDoc) {
+        throw new Error("Uploaded document was not found after refresh");
+      }
+      
+      setUploadedDocumentsByType((prev) => ({
+        ...prev,
+        [docTypeId]: [
+          ...(prev[docTypeId] || []).filter((doc) => doc.id !== realUploadedDoc.id),
+          {
+            ...realUploadedDoc,
+            documentType: docTypeId,
+          },
+        ],
+      }));
+      
       setUploadedDocTypes((prev) => ({ ...prev, [docTypeId]: true }));
-      await fetchDocuments();
+      
+      if (!SPECIAL_DOC_TYPES.includes(docTypeId)) {
+        clearDocumentUploadTimer(docTypeId);
+        documentUploadTimersRef.current[docTypeId] = window.setTimeout(() => {
+          setUploadedDocTypes((prev) => ({ ...prev, [docTypeId]: false }));
+          delete documentUploadTimersRef.current[docTypeId];
+        }, DOCUMENT_UPLOAD_RESET_MS);
+      }
+      
+      
+  
+      
+      
+  
+      
+  
     } catch (error) {
       console.error("Error uploading document:", error);
       showToast(`Failed to upload ${docTypeLabel}`, "error");
@@ -4181,6 +4312,36 @@ const isPhaseUnlocked = (table, targetPhase) => {
       id="profile-to-download"
       className="min-h-screen w-full flex flex-col items-center bg-[#f7f7f7] relative overflow-hidden py-20"
     >
+
+        {showDocumentDeleteConfirm && pendingDocumentDelete && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+          <h3 className="text-lg font-semibold text-[#170F49]">Confirm delete</h3>
+          <p className="mt-2 text-sm text-[#6F6C90]">
+            Are you sure you want to delete "{pendingDocumentDelete.documentName}"?
+            This action cannot be undone.
+          </p>
+          <div className="mt-5 flex justify-end gap-3">
+            <button
+              onClick={() => {
+                setShowDocumentDeleteConfirm(false);
+                setPendingDocumentDelete(null);
+              }}
+              className="px-4 py-2 rounded-lg border border-gray-300 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteDocument}
+              className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
       {/* Toast Notification */}
       {toast.show && (
         <div
@@ -6330,12 +6491,10 @@ const isPhaseUnlocked = (table, targetPhase) => {
                     { id: "birth_certificate", label: "Birth Certificate" },
                     { id: "disability_certificate", label: "Disability Certificate" },
                     { id: "ration_card", label: "Ration Card" },
-                    { id: "pwd_registration", label: "Person with Disability Registration" },
-                    { id: "medical_certificate", label: "Medical Certificate" },
-                    { id: "unique_disability", label: "Unique Disability" },
-                    { id: "hospital_assessment", label: "Assessment Report from Hospital" },
+                    { id: "unique_disability", label: "UDID Card" },
+                    { id: "hospital_assessment", label: "Medical Reports" },
                     { id: "passbook", label: "Passbook" },
-                    { id: "nish_assessment", label: "NISH Psychological Assessment Report" },
+                    { id: "nish_assessment", label: "Assessment Report" },
                   ].map((docType) => (
                     <div
                       key={docType.id}
@@ -6361,6 +6520,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
                           </div>
                           <p className="text-xs text-[#6F6C90]">PDF only • Max 5MB</p>
                         </div>
+                                                
                         <button
                           onClick={() => {
                             const input = document.createElement("input");
@@ -6408,8 +6568,10 @@ const isPhaseUnlocked = (table, targetPhase) => {
                                 {/* Documents List */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-[#170F49] mb-4">Uploaded Documents</h4>
-                  {documentsLoading ? (
-                    <div className="text-center py-8 text-[#6F6C90]">Loading documents...</div>
+                                    {documentsLoading ? (
+                    <div className="text-center py-8 text-[#6F6C90]">
+                      Loading documents...
+                    </div>
                   ) : documents.length === 0 ? (
                     <div className="text-center py-12 px-4">
                       <svg
@@ -6429,106 +6591,90 @@ const isPhaseUnlocked = (table, targetPhase) => {
                       <p className="text-xs text-[#6F6C90] mt-2">Upload documents from the grid above</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {documents.map((doc) => (
-                        <div
-                          key={doc.id}
-                          className="group p-5 bg-gradient-to-br from-white to-orange-50/30 rounded-xl border border-[#E38B52]/20 hover:border-[#E38B52]/40 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
-                        >
-                          {/* Header with Icon and Name */}
-                          <div className="flex items-start gap-3 mb-4">
-                            <div className="p-3 bg-[#E38B52]/10 rounded-lg group-hover:bg-[#E38B52]/20 transition-colors duration-200">
-                              <svg
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="#E38B52"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline points="14 2 14 8 20 8" />
-                              </svg>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-[#170F49] text-sm truncate" title={doc.name}>
-                                {doc.name}
-                              </p>
-                              <p className="text-xs text-[#6F6C90] mt-1">
-                                {(doc.file_size / 1024).toFixed(2)} KB • {new Date(doc.upload_date).toLocaleDateString()}
-                              </p>
+                    <div className="space-y-6">
+                      {Object.entries(DOCUMENT_TYPE_LABELS).map(([typeKey, label]) => {
+                        const docsForType = uploadedDocumentsByType[typeKey] || [];
+                  
+                        if (docsForType.length === 0) return null;
+                  
+                        return (
+                          <div key={typeKey} className="space-y-3">
+                            <h5 className="text-sm font-semibold text-[#170F49]">{label}</h5>
+                  
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {docsForType.map((doc) => (
+                                <div
+                                  key={doc.id}
+                                  className="group p-5 bg-gradient-to-br from-white to-orange-50/30 rounded-xl border border-[#E38B52]/20 hover:border-[#E38B52]/40 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
+                                >
+                                  <div className="flex items-start gap-3 mb-4">
+                                    <div className="p-3 bg-[#E38B52]/10 rounded-lg group-hover:bg-[#E38B52]/20 transition-colors duration-200">
+                                      <svg
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="#E38B52"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                        <polyline points="14 2 14 8 20 8" />
+                                      </svg>
+                                    </div>
+                  
+                                    <div className="flex-1 min-w-0">
+                                      <p
+                                        className="font-semibold text-[#170F49] text-sm truncate"
+                                        title={doc.name}
+                                      >
+                                        {doc.name}
+                                      </p>
+                                      <p className="text-xs text-[#6F6C90] mt-1">
+                                        {(doc.file_size / 1024).toFixed(2)} KB •{" "}
+                                        {new Date(doc.upload_date).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                  </div>
+                  
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleViewDocument(doc.id, doc.name)}
+                                      className="flex-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
+                                      title="View"
+                                    >
+                                      View
+                                    </button>
+                  
+                                    <button
+                                      onClick={() => handleDownloadDocument(doc.id, doc.name)}
+                                      className="flex-1 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
+                                      title="Download"
+                                    >
+                                      Download
+                                    </button>
+                  
+                                    <button
+                                      onClick={() =>
+                                        confirmDeleteDocument(
+                                          doc.id,
+                                          doc.name,
+                                          getDocumentTypeId(doc),
+                                        )
+                                      }
+                                      className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg transition-all duration-200 font-medium text-sm"
+                                      title="Delete"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                
-                          {/* Action Buttons */}
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleViewDocument(doc.id, doc.name)}
-                              className="flex-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
-                              title="View"
-                            >
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                <circle cx="12" cy="12" r="3" />
-                              </svg>
-                              View
-                            </button>
-                            <button
-                              onClick={() => handleDownloadDocument(doc.id, doc.name)}
-                              className="flex-1 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
-                              title="Download"
-                            >
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                <polyline points="7 10 12 15 17 10" />
-                                <line x1="12" y1="15" x2="12" y2="3" />
-                              </svg>
-                              Download
-                            </button>
-                            <button
-                              onClick={() => handleDeleteDocument(doc.id, doc.name)}
-                              className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg transition-all duration-200 font-medium text-sm"
-                              title="Delete"
-                            >
-                              <svg
-                                width="16"
-                                height="16"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                                <line x1="10" y1="11" x2="10" y2="17" />
-                                <line x1="14" y1="11" x2="14" y2="17" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
