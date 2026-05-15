@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL =
+  process.env.REACT_APP_API_BASE_URL || "http://localhost:8000";
 
 // ++ PASTE THIS ENTIRE COMPONENT BLOCK HERE ++
 const ScrollToTopButton = () => {
@@ -19,7 +20,7 @@ const ScrollToTopButton = () => {
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
-      behavior: "smooth"
+      behavior: "smooth",
     });
   };
 
@@ -28,13 +29,24 @@ const ScrollToTopButton = () => {
       onClick={scrollToTop}
       title="Back to Top"
       className={`fixed z-50 bottom-8 right-8 w-12 h-12 flex items-center justify-center rounded-full bg-[#E38B52] text-white shadow-lg transition-all duration-300
-        ${visible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
+        ${visible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}
         hover:scale-110 hover:bg-[#C8742F] focus:outline-none`}
-      style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
+      style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}
       aria-label="Back to Top"
     >
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-7 7m7-7l7 7" />
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M12 19V5m0 0l-7 7m7-7l7 7"
+        />
       </svg>
     </button>
   );
@@ -42,15 +54,17 @@ const ScrollToTopButton = () => {
 
 const HeadMaster = () => {
   const navigate = useNavigate();
-  const [filterOption, setFilterOption] = useState("all");
   const [selectedClass, setSelectedClass] = useState("all");
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [classesList, setClassesList] = useState([]);
+  const filterRef = useRef(null);
   const [isSearchFloating, setIsSearchFloating] = useState(false);
-  const [notification, setNotification] = useState({ message: '', type: '' });
+  const [notification, setNotification] = useState({ message: "", type: "" });
   const [activeTab, setActiveTab] = useState(() => {
     // Get the saved tab from localStorage, default to "students"
-    return localStorage.getItem('headmistressActiveTab') || "students";
+    return localStorage.getItem("headmistressActiveTab") || "students";
   });
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+
   const [teachers, setTeachers] = useState([]);
   // eslint-disable-next-line
   const [loading, setLoading] = useState(true);
@@ -67,35 +81,55 @@ const HeadMaster = () => {
   // Add scroll event listener
   useEffect(() => {
     const handleScroll = () => {
-      const searchBarPosition = document.getElementById('search-container')?.getBoundingClientRect().top;
+      const searchBarPosition = document
+        .getElementById("search-container")
+        ?.getBoundingClientRect().top;
       if (searchBarPosition < 0) {
         setIsSearchFloating(true);
-      } else {    
+      } else {
         setIsSearchFloating(false);
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // derive list of classes from fetched students for dropdown and handle outside clicks
+  useEffect(() => {
+    const classSet = new Set();
+    students.forEach((s) => {
+      if (s.class_name) classSet.add(s.class_name);
+    });
+    const derived = Array.from(classSet).sort();
+    setClassesList(derived);
+
+    const handleClickOutside = (e) => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) {
+        setShowFilterDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [students]);
 
   useEffect(() => {
     const fetchTeachers = async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/v1/teachers/`);
         // Sort teachers alphabetically by name
-        const sortedTeachers = response.data.sort((a, b) => 
-          a.name.localeCompare(b.name)
+        const sortedTeachers = response.data.sort((a, b) =>
+          a.name.localeCompare(b.name),
         );
         setTeachers(sortedTeachers);
         setLoading(false);
       } catch (error) {
-        console.error('Error fetching teachers:', error);
+        console.error("Error fetching teachers:", error);
         setLoading(false);
       }
     };
 
-    if (activeTab === 'teachers') {
+    if (activeTab === "teachers") {
       fetchTeachers();
     }
   }, [activeTab]);
@@ -107,18 +141,18 @@ const HeadMaster = () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/v1/therapists/`);
         // Sort therapists alphabetically by name
-        const sortedTherapists = response.data.sort((a, b) => 
-          a.name.localeCompare(b.name)
+        const sortedTherapists = response.data.sort((a, b) =>
+          a.name.localeCompare(b.name),
         );
         setTherapists(sortedTherapists);
       } catch (error) {
-        console.error('Error fetching therapists:', error);
+        console.error("Error fetching therapists:", error);
       } finally {
         setTherapistsLoading(false);
       }
     };
 
-    if (activeTab === 'therapists') {
+    if (activeTab === "therapists") {
       fetchTherapists();
     }
   }, [activeTab]);
@@ -132,53 +166,63 @@ const HeadMaster = () => {
           page: 1,
           page_size: 100,
         };
-        if (studentSearch && studentSearch.trim()) params.search = studentSearch.trim();
-        if (selectedClass && selectedClass !== 'all') params.class_name = selectedClass;
-        const { data } = await axios.get(`${API_BASE_URL}/api/v1/students/`, { params });
-  const items = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
-  console.debug('fetchStudents: raw items', items);
+        if (studentSearch && studentSearch.trim())
+          params.search = studentSearch.trim();
+        if (selectedClass && selectedClass !== "all")
+          params.class_name = selectedClass;
+        const { data } = await axios.get(`${API_BASE_URL}/api/v1/students/`, {
+          params,
+        });
+        const items = Array.isArray(data?.items)
+          ? data.items
+          : Array.isArray(data)
+            ? data
+            : [];
+        console.debug("fetchStudents: raw items", items);
         // Normalize photo key: accept either photo_url (snake_case) or photoUrl (camelCase)
-        const normalized = items.map(s => {
-          console.log('Student:', s.name, 'photo_url:', s.photo_url);
+        const normalized = items.map((s) => {
+          console.log("Student:", s.name, "photo_url:", s.photo_url);
           return {
             ...s,
             photo_url: s.photo_url || s.photoUrl || null,
           };
         });
-        const sortedStudents = [...normalized].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        const sortedStudents = [...normalized].sort((a, b) =>
+          (a.name || "").localeCompare(b.name || ""),
+        );
         setStudents(sortedStudents);
       } catch (error) {
-        console.error('Error fetching students:', error);
+        console.error("Error fetching students:", error);
       } finally {
         setStudentsLoading(false);
       }
     };
-    if (activeTab === 'students') {
+    if (activeTab === "students") {
       fetchStudents();
     }
   }, [activeTab, studentSearch, selectedClass]);
 
   // Add this function to handle logout
   const handleLogout = () => {
-    navigate('/');
+    navigate("/");
   };
 
   // Add this function to handle navigation to AddStudent
   const handleAddStudent = () => {
     // Don't change tab, maintain current state
-    navigate('/add-student');
+    navigate("/add-student");
   };
 
   // Add this function to handle navigation to AddTeacher
   const handleAddTeacher = () => {
     // Don't change tab, maintain current state
-    navigate('/add-teacher');
+    navigate("/add-teacher");
   };
 
   // Add this function to handle navigation to AddTherapist
   const handleAddTherapist = () => {
     // Don't change tab, maintain current state
-    navigate('/add-therapist');
+    navigate("/add-therapist");
   };
 
   // Add this function to handle navigation to StudentPage
@@ -201,7 +245,7 @@ const HeadMaster = () => {
 
   // Add this function to handle navigation to AddUser
   const handleAddUserClick = () => {
-    navigate('/add-user');
+    navigate("/add-user");
   };
 
   // Add this function to handle teacher deletion
@@ -214,18 +258,22 @@ const HeadMaster = () => {
   // Function to confirm deletion
   const confirmDelete = async () => {
     if (!teacherToDelete) return;
-    
+
     try {
-      const response = await axios.delete(`${API_BASE_URL}/api/v1/teachers/${teacherToDelete.id}`);
-      
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/v1/teachers/${teacherToDelete.id}`,
+      );
+
       if (response.status === 200 || response.status === 204) {
         // Remove the teacher from the local state
-        setTeachers(teachers.filter(teacher => teacher.id !== teacherToDelete.id));
+        setTeachers(
+          teachers.filter((teacher) => teacher.id !== teacherToDelete.id),
+        );
         alert(`${teacherToDelete.name} has been successfully deleted.`);
       }
     } catch (error) {
-      console.error('Error deleting teacher:', error);
-      alert('Failed to delete teacher. Please try again.');
+      console.error("Error deleting teacher:", error);
+      alert("Failed to delete teacher. Please try again.");
     } finally {
       setShowDeleteConfirm(false);
       setTeacherToDelete(null);
@@ -239,11 +287,13 @@ const HeadMaster = () => {
   };
 
   // 1. Add state for student delete modal
-  const [showStudentDeleteConfirm, setShowStudentDeleteConfirm] = useState(false);
+  const [showStudentDeleteConfirm, setShowStudentDeleteConfirm] =
+    useState(false);
   const [studentToDelete, setStudentToDelete] = useState(null);
-  
+
   // Add state for therapist delete modal
-  const [showTherapistDeleteConfirm, setShowTherapistDeleteConfirm] = useState(false);
+  const [showTherapistDeleteConfirm, setShowTherapistDeleteConfirm] =
+    useState(false);
   const [therapistToDelete, setTherapistToDelete] = useState(null);
 
   // 2. Add handler functions
@@ -251,62 +301,74 @@ const HeadMaster = () => {
     setStudentToDelete({ id: studentId, name: studentName });
     setShowStudentDeleteConfirm(true);
   };
-  
+
   // Add therapist delete handler
   const handleDeleteTherapist = (therapistId, therapistName) => {
     setTherapistToDelete({ id: therapistId, name: therapistName });
     setShowTherapistDeleteConfirm(true);
   };
-  
+
   // Confirm therapist deletion
   const confirmDeleteTherapist = async () => {
     if (!therapistToDelete) return;
-    
+
     try {
-      const response = await axios.delete(`${API_BASE_URL}/api/v1/therapists/${therapistToDelete.id}`);
-      
+      const response = await axios.delete(
+        `${API_BASE_URL}/api/v1/therapists/${therapistToDelete.id}`,
+      );
+
       if (response.status === 200 || response.status === 204) {
         // Remove the therapist from the local state
-        setTherapists(therapists.filter(therapist => therapist.id !== therapistToDelete.id));
+        setTherapists(
+          therapists.filter(
+            (therapist) => therapist.id !== therapistToDelete.id,
+          ),
+        );
         alert(`${therapistToDelete.name} has been successfully deleted.`);
       }
     } catch (error) {
-      console.error('Error deleting therapist:', error);
-      alert('Failed to delete therapist. Please try again.');
+      console.error("Error deleting therapist:", error);
+      alert("Failed to delete therapist. Please try again.");
     } finally {
       setShowTherapistDeleteConfirm(false);
       setTherapistToDelete(null);
     }
   };
-  
+
   // Cancel therapist deletion
   const cancelDeleteTherapist = () => {
     setShowTherapistDeleteConfirm(false);
     setTherapistToDelete(null);
   };
- const confirmDeleteStudent = async () => {
+  const confirmDeleteStudent = async () => {
     if (!studentToDelete) return;
 
     try {
       // Step 1: Call the backend API to delete the student
-      await axios.delete(`${API_BASE_URL}/api/v1/students/${studentToDelete.id}`);
+      await axios.delete(
+        `${API_BASE_URL}/api/v1/students/${studentToDelete.id}`,
+      );
 
       // Step 2: Remove the deleted student from the local list to update the UI
-      setStudents(students.filter(student => student.id !== studentToDelete.id));
-      
-      // Step 3: Show a success message
-      setNotification({ message: `${studentToDelete.name} has been deleted.`, type: 'error' });
+      setStudents(
+        students.filter((student) => student.id !== studentToDelete.id),
+      );
 
+      // Step 3: Show a success message
+      setNotification({
+        message: `${studentToDelete.name} has been deleted.`,
+        type: "error",
+      });
     } catch (error) {
-      console.error('Error deleting student:', error);
+      console.error("Error deleting student:", error);
       // Show an error message
-      setNotification({ message: 'Failed to delete student.', type: 'error' });
+      setNotification({ message: "Failed to delete student.", type: "error" });
     } finally {
       // Step 4: Always close the modal and reset the state
       setShowStudentDeleteConfirm(false);
       setStudentToDelete(null);
       // Hide the notification after 3 seconds
-      setTimeout(() => setNotification({ message: '', type: '' }), 3000);
+      setTimeout(() => setNotification({ message: "", type: "" }), 3000);
     }
   };
   const cancelDeleteStudent = () => {
@@ -350,9 +412,7 @@ const HeadMaster = () => {
             viewBox="0 0 20 20"
             fill="currentColor"
           >
-            <path
-              d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z"
-            />
+            <path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z" />
           </svg>
           Add User
         </button>
@@ -363,13 +423,13 @@ const HeadMaster = () => {
         <h1 className="text-4xl font-bold text-[#170F49] font-baskervville">
           Headmistress's Page
         </h1>
-        <p className="text-[#6F6C8F] mt-2">
-          Manage Students and Teachers
-        </p>
+        <p className="text-[#6F6C8F] mt-2">Manage Students and Teachers</p>
       </div>
 
       {/* Floating Search Bar */}
-      <div className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-in-out ${isSearchFloating ? 'translate-y-0' : '-translate-y-full'}`}>
+      <div
+        className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 ease-in-out ${isSearchFloating ? "translate-y-0" : "-translate-y-full"}`}
+      >
         <div className="backdrop-blur-xl p-4">
           <div className="w-[90%] max-w-[1200px] mx-auto">
             <div className="relative w-full md:w-[443px] mx-auto">
@@ -400,7 +460,7 @@ const HeadMaster = () => {
       <div className="fixed -bottom-32 right-40 w-[600px] h-[600px] bg-[#E38B52] rounded-full mix-blend-multiply filter blur-2xl opacity-40 animate-float animation-delay-3000 z-0" />
       <div className="fixed top-1/2 left-1/2 w-[500px] h-[500px] bg-[#E38B52] rounded-full mix-blend-multiply filter blur-2xl opacity-40 animate-float animation-delay-5000 z-0" />
       <div className="fixed top-0 -left-40 w-[500px] h-[600px] bg-[#E38B52] rounded-full mix-blend-multiply filter blur-2xl opacity-30 animate-float animation-delay-7000 z-0" />
-      
+
       <div className="w-[90%] max-w-[1200px] mx-4 z-10">
         {/* Tabs */}
         <div className="flex justify-center mb-8">
@@ -409,9 +469,14 @@ const HeadMaster = () => {
             <div
               className="absolute h-[calc(100%-8px)] top-[4px] transition-all duration-300 ease-in-out rounded-xl bg-[#E38B52] shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_4px_8px_rgba(255,255,255,0.2)]"
               style={{
-                left: activeTab === "students" ? "4px" : activeTab === "teachers" ? "calc(33.33% + 2px)" : "calc(66.66% + 0px)",
+                left:
+                  activeTab === "students"
+                    ? "4px"
+                    : activeTab === "teachers"
+                      ? "calc(33.33% + 2px)"
+                      : "calc(66.66% + 0px)",
                 width: "calc(33.33% - 6px)",
-                background: 'linear-gradient(135deg, #E38B52 0%, #E38B52 100%)',
+                background: "linear-gradient(135deg, #E38B52 0%, #E38B52 100%)",
               }}
             >
               {/* Animated particles */}
@@ -421,12 +486,12 @@ const HeadMaster = () => {
                 <div className="particle-3"></div>
               </div>
             </div>
-            
+
             {/* Students Tab */}
             <button
               onClick={() => {
                 setActiveTab("students");
-                localStorage.setItem('headmistressActiveTab', "students");
+                localStorage.setItem("headmistressActiveTab", "students");
               }}
               className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 relative z-10 ${
                 activeTab === "students"
@@ -436,12 +501,12 @@ const HeadMaster = () => {
             >
               Students List
             </button>
-            
+
             {/* Teachers Tab */}
             <button
               onClick={() => {
                 setActiveTab("teachers");
-                localStorage.setItem('headmistressActiveTab', "teachers");
+                localStorage.setItem("headmistressActiveTab", "teachers");
               }}
               className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 relative z-10 ${
                 activeTab === "teachers"
@@ -451,12 +516,12 @@ const HeadMaster = () => {
             >
               Teachers List
             </button>
-            
+
             {/* Therapists Tab */}
             <button
               onClick={() => {
                 setActiveTab("therapists");
-                localStorage.setItem('headmistressActiveTab', "therapists");
+                localStorage.setItem("headmistressActiveTab", "therapists");
               }}
               className={`px-6 py-3 rounded-xl font-medium transition-all duration-300 relative z-10 ${
                 activeTab === "therapists"
@@ -468,7 +533,7 @@ const HeadMaster = () => {
             </button>
           </div>
         </div>
-        
+
         {/* Main container */}
         <div className="relative bg-white/30 backdrop-blur-xl rounded-3xl shadow-xl p-8 md:p-12 border border-white/20">
           {activeTab === "students" ? (
@@ -482,7 +547,7 @@ const HeadMaster = () => {
                     placeholder="Search students..."
                     className="w-[443px] pl-10 pr-4 py-3 rounded-xl border bg-[#FAF9F6] shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all duration-300 placeholder:text-gray-400 hover:placeholder:text-gray-600"
                     value={studentSearch}
-                    onChange={e => setStudentSearch(e.target.value)}
+                    onChange={(e) => setStudentSearch(e.target.value)}
                   />
                   <svg
                     className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
@@ -500,150 +565,206 @@ const HeadMaster = () => {
 
                 <div className="flex items-center gap-3">
                   {/* Add Student Button */}
-                  <button 
+                  <button
                     onClick={handleAddStudent}
                     className="px-6 py-3 bg-[#E38B52] text-white rounded-xl hover:bg-[#E38B52]/90 transition-all duration-200 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_4px_8px_rgba(255,255,255,0.2)] hover:-translate-y-1 hover:scale-105 flex items-center gap-2"
                   >
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      className="h-5 w-5" 
-                      viewBox="0 0 20 20" 
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
                       fill="currentColor"
                     >
-                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                      <path
+                        fillRule="evenodd"
+                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                     Add Student
                   </button>
 
-                  {/* Filter Button with Dropdown */}
-                  <div className="relative">
-                    <button 
-                      onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                      className="p-3 bg-[#E38B52] text-white rounded-xl hover:bg-[#E38B52]/90 transition-all duration-200 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_4px_8px_rgba(255,255,255,0.2)] hover:-translate-y-1 hover:scale-105"
+                  {/* Filter dropdown: select a class to filter students */}
+                  <div className="relative" ref={filterRef}>
+                    <button
+                      onClick={() => setShowFilterDropdown((s) => !s)}
+                      className="px-4 py-3 bg-[#E38B52] text-white rounded-xl hover:bg-[#E38B52]/90 transition-all duration-200 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_4px_8px_rgba(255,255,255,0.2)] hover:-translate-y-1 hover:scale-105 flex items-center gap-2"
+                      aria-haspopup="listbox"
+                      aria-expanded={showFilterDropdown}
+                      aria-label="Filter students by class"
                     >
-                      <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        className="h-5 w-5" 
-                        viewBox="0 0 20 20" 
-                        fill="currentColor"
-                      >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
                       </svg>
+                      <span className="text-sm font-medium">
+                        {selectedClass === "all" ? "Filter" : selectedClass}
+                      </span>
                     </button>
 
-                    {/* Filter Dropdown Menu */}
                     {showFilterDropdown && (
-                      <div className="absolute right-0 mt-2 w-48 bg-[#FAF9F6] rounded-xl shadow-lg overflow-hidden z-50">
-                        <div className="p-2 space-y-2">
-                          <select
-                            value={filterOption}
-                            onChange={(e) => {
-                              setFilterOption(e.target.value);
-                            }}
-                            className="w-full px-4 py-2.5 text-sm text-[#170F49] bg-[#FAF9F6] rounded-lg border border-gray-200 hover:border-[#E38B52] focus:outline-none focus:border-[#E38B52] transition-all duration-200"
-                          >
-                            <option value="all">All Students</option>
-                            <option value="class">Class</option>
-                          </select>
-                          
-                          {filterOption === 'class' && (
-                            <select
-                              value={selectedClass}
-                              onChange={(e) => {
-                                setSelectedClass(e.target.value);
+                      <div className="absolute right-0 mt-2 w-52 bg-[#FAF9F6] rounded-xl shadow-lg overflow-hidden z-50">
+                        <ul className="p-2 space-y-2" role="listbox" aria-label="Class filter options">
+                          <li>
+                            <button
+                              onClick={() => {
+                                setSelectedClass("all");
                                 setShowFilterDropdown(false);
                               }}
-                              className="w-full px-4 py-2.5 text-sm text-[#170F49] bg-[#FAF9F6] rounded-lg border border-gray-200 hover:border-[#E38B52] focus:outline-none focus:border-[#E38B52] transition-all duration-200"
+                              className={`w-full text-left px-4 py-2 rounded-lg hover:bg-[#E38B52]/10 ${selectedClass === "all" ? "font-semibold" : ""}`}
                             >
-                              <option value="all">All Classes</option>
-                              <option value="preprimary">PrePrimary</option>
-                              <option value="primary1">Primary 1</option>
-                              <option value="primary2">Primary 2</option>
-                              <option value="secondary">Secondary</option>
-                              <option value="prevocational1">Pre vocational 1</option>
-                              <option value="prevocational2">Pre vocational 2</option>
-                              <option value="caregroup-below-18">Care group below 18 years</option>
-                              <option value="caregroup-above-18">Care group Above 18 years</option>
-                              <option value="vocational">Vocational 18-35 years</option>
-                            </select>
+                              All Students
+                            </button>
+                          </li>
+                          {classesList.length === 0 ? (
+                            [
+                              "preprimary",
+                              "primary1",
+                              "primary2",
+                              "secondary",
+                              "prevocational1",
+                              "prevocational2",
+                              "caregroup-below-18",
+                              "caregroup-above-18",
+                              "vocational",
+                            ].map((c) => (
+                              <li key={c}>
+                                <button
+                                  onClick={() => {
+                                    setSelectedClass(c);
+                                    setShowFilterDropdown(false);
+                                  }}
+                                  className={`w-full text-left px-4 py-2 rounded-lg hover:bg-[#E38B52]/10 ${selectedClass === c ? "font-semibold" : ""}`}
+                                >
+                                  {c}
+                                </button>
+                              </li>
+                            ))
+                          ) : (
+                            classesList.map((c) => (
+                              <li key={c}>
+                                <button
+                                  onClick={() => {
+                                    setSelectedClass(c);
+                                    setShowFilterDropdown(false);
+                                  }}
+                                  className={`w-full text-left px-4 py-2 rounded-lg hover:bg-[#E38B52]/10 ${selectedClass === c ? "font-semibold" : ""}`}
+                                >
+                                  {c}
+                                </button>
+                              </li>
+                            ))
                           )}
-                        </div>
+                        </ul>
                       </div>
                     )}
                   </div>
                 </div>
               </div>
-              
+
               {/* Student List */}
               <div className="grid grid-cols-1 gap-4 px-4">
                 {studentsLoading && (
-                  <div className="text-center text-[#6F6C8F]">Loading students...</div>
+                  <div className="text-center text-[#6F6C8F]">
+                    Loading students...
+                  </div>
                 )}
                 {!studentsLoading && students.length === 0 && (
-                  <div className="text-center text-[#6F6C8F]">No students found.</div>
+                  <div className="text-center text-[#6F6C8F]">
+                    No students found.
+                  </div>
                 )}
-                {!studentsLoading && students.map((student) => (
-                  <div 
-                    key={student.id}
-                    onClick={() => handleStudentClick(student.id)}
-                    className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer"
-                  >
-                    <div className="flex items-center space-x-4 text-[#170F49]">
-                      <div className="w-16 h-16 rounded-lg overflow-hidden">
-                    <img 
-  // This is the key change:
-  // 1. Use the student's photo if it exists.
-  // 2. If not, use your original grey-background, name-initial avatar.
-  src={student.photo_url || `https://eu.ui-avatars.com/api/?name=${encodeURIComponent(student.name || 'S')}&size=250&background=EFEFEF&color=170F49`}
-  
-  alt={student.name}
-  className="w-full h-full object-cover"
-  onError={(e) => {
-    // This is a final backup if both image links fail.
-    e.target.src = "https://placehold.co/64x64/EFEFEF/AAAAAA?text=Photo";
-  }}
-/>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-[#170F49]">{student.name}</h3>
-                        <div className="space-y-1">
-                          <p className="text-sm text-[#6F6C8F]">
-                            <span className="font-medium">Class:</span> {student.class_name || '-'}
-                          </p>
-                          <p className="text-sm text-[#6F6C8F]">
-                            <span className="font-medium">Roll No:</span> {student.roll_no || '-'}
-                          </p>
+                {!studentsLoading &&
+                  students.map((student) => (
+                    <div
+                      key={student.id}
+                      onClick={() => handleStudentClick(student.id)}
+                      className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer"
+                    >
+                      <div className="flex items-center space-x-4 text-[#170F49]">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden">
+                          <img
+                            // This is the key change:
+                            // 1. Use the student's photo if it exists.
+                            // 2. If not, use your original grey-background, name-initial avatar.
+                            src={
+                              student.photo_url ||
+                              `https://eu.ui-avatars.com/api/?name=${encodeURIComponent(student.name || "S")}&size=250&background=EFEFEF&color=170F49`
+                            }
+                            alt={student.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // This is a final backup if both image links fail.
+                              e.target.src =
+                                "https://placehold.co/64x64/EFEFEF/AAAAAA?text=Photo";
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-[#170F49]">
+                            {student.name}
+                          </h3>
+                          <div className="space-y-1">
+                            <p className="text-sm text-[#6F6C8F]">
+                              <span className="font-medium">Class:</span>{" "}
+                              {student.class_name || "-"}
+                            </p>
+                            <p className="text-sm text-[#6F6C8F]">
+                              <span className="font-medium">Roll No:</span>{" "}
+                              {student.roll_no || "-"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            className="p-2 text-[#E38B52] hover:text-[#E38B52]/90 rounded-lg transition-colors"
+                            title="View Student Profile"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStudentClick(student.id);
+                            }}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 5l7 7-7 7"
+                              />
+                            </svg>
+                          </button>
+                          <button
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg[rgba(227,139,82,0.2)] rounded-lg transition-colors"
+                            title="Delete Student"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteStudent(student.id, student.name);
+                            }}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
+                            </svg>
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          className="p-2 text-[#E38B52] hover:text-[#E38B52]/90 rounded-lg transition-colors"
-                          title="View Student Profile"
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleStudentClick(student.id);
-                          }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                        <button 
-                          className="p-2 text-red-500 hover:text-red-700 hover:bg[rgba(227,139,82,0.2)] rounded-lg transition-colors"
-                          title="Delete Student"
-                          onClick={e => {
-                            e.stopPropagation();
-                            handleDeleteStudent(student.id, student.name);
-                          }}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </>
           ) : activeTab === "teachers" ? (
@@ -658,7 +779,7 @@ const HeadMaster = () => {
                     placeholder="Search teachers..."
                     className="w-[443px] pl-10 pr-4 py-3 rounded-xl border bg-[#FAF9F6] shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all duration-300 placeholder:text-gray-400 hover:placeholder:text-gray-600"
                     value={teacherSearch}
-                    onChange={e => setTeacherSearch(e.target.value)}
+                    onChange={(e) => setTeacherSearch(e.target.value)}
                   />
                   <svg
                     className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
@@ -675,17 +796,21 @@ const HeadMaster = () => {
                 </div>
 
                 {/* Add Teacher Button */}
-                <button 
+                <button
                   onClick={handleAddTeacher}
                   className="px-6 py-3 bg-[#E38B52] text-white rounded-xl hover:bg-[#E38B52]/90 transition-all duration-200 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_4px_8px_rgba(255,255,255,0.2)] hover:-translate-y-1 hover:scale-105 flex items-center gap-2"
                 >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    className="h-5 w-5" 
-                    viewBox="0 0 20 20" 
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
                     fill="currentColor"
                   >
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    <path
+                      fillRule="evenodd"
+                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                   Add Teacher
                 </button>
@@ -693,29 +818,45 @@ const HeadMaster = () => {
 
               {/* Teachers List */}
               <div className="grid grid-cols-1 gap-4 px-4">
-                {teachers.filter(teacher =>
-                  teacher.name.toLowerCase().includes(teacherSearch.toLowerCase()) ||
-                  (teacher.qualifications_details && teacher.qualifications_details.toLowerCase().includes(teacherSearch.toLowerCase())) ||
-                  (teacher.mobile_number && teacher.mobile_number.includes(teacherSearch))
+                {teachers.filter(
+                  (teacher) =>
+                    teacher.name
+                      .toLowerCase()
+                      .includes(teacherSearch.toLowerCase()) ||
+                    (teacher.qualifications_details &&
+                      teacher.qualifications_details
+                        .toLowerCase()
+                        .includes(teacherSearch.toLowerCase())) ||
+                    (teacher.mobile_number &&
+                      teacher.mobile_number.includes(teacherSearch)),
                 ).length === 0 ? (
-                  <div className="text-center text-[#6F6C8F]">No teachers found.</div>
+                  <div className="text-center text-[#6F6C8F]">
+                    No teachers found.
+                  </div>
                 ) : (
                   teachers
-                    .filter(teacher =>
-                      teacher.name.toLowerCase().includes(teacherSearch.toLowerCase()) ||
-                      (teacher.qualifications_details && teacher.qualifications_details.toLowerCase().includes(teacherSearch.toLowerCase())) ||
-                      (teacher.mobile_number && teacher.mobile_number.includes(teacherSearch))
+                    .filter(
+                      (teacher) =>
+                        teacher.name
+                          .toLowerCase()
+                          .includes(teacherSearch.toLowerCase()) ||
+                        (teacher.qualifications_details &&
+                          teacher.qualifications_details
+                            .toLowerCase()
+                            .includes(teacherSearch.toLowerCase())) ||
+                        (teacher.mobile_number &&
+                          teacher.mobile_number.includes(teacherSearch)),
                     )
                     .map((teacher) => (
-                      <div 
+                      <div
                         key={teacher.id}
                         onClick={() => handleTeacherClick(teacher.id)}
                         className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer"
                       >
                         <div className="flex items-center space-x-4 text-[#170F49]">
                           <div className="w-16 h-16 rounded-lg overflow-hidden">
-                            <img 
-                              src={`https://eu.ui-avatars.com/api/?name=${teacher.name.replace(' ', '+')}&size=250`}
+                            <img
+                              src={`https://eu.ui-avatars.com/api/?name=${teacher.name.replace(" ", "+")}&size=250`}
                               alt="Teacher"
                               className="w-full h-full object-cover"
                             />
@@ -726,24 +867,39 @@ const HeadMaster = () => {
                             </h3>
                             <div className="space-y-1">
                               <p className="text-sm text-[#6F6C8F]">
-                                <span className="font-medium">Mobile:</span> {teacher.mobile_number}
+                                <span className="font-medium">Mobile:</span>{" "}
+                                {teacher.mobile_number}
                               </p>
                               <p className="text-sm text-[#6F6C8F]">
-                                <span className="font-medium">Qualifications:</span> {teacher.qualifications_details}
+                                <span className="font-medium">
+                                  Qualifications:
+                                </span>{" "}
+                                {teacher.qualifications_details}
                               </p>
                             </div>
                           </div>
                           <div className="flex space-x-2">
-                            <button 
+                            <button
                               onClick={() => handleTeacherClick(teacher.id)}
                               className="text-[#E38B52] hover:text-[#E38B52]/90 transition-colors p-2 rounded-lg hover:bg-[#E38B52]/10"
                               title="View Teacher Details"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 5l7 7-7 7"
+                                />
                               </svg>
                             </button>
-                            <button 
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteTeacher(teacher.id, teacher.name);
@@ -751,14 +907,26 @@ const HeadMaster = () => {
                               className="text-red-500 hover:text-red-700 transition-colors p-2 rounded-lg hover:bg-[rgba(227,139,82,0.2)]"
                               title="Delete Teacher"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
                               </svg>
                             </button>
                           </div>
                         </div>
                       </div>
-                  )))}
+                    ))
+                )}
               </div>
             </>
           ) : activeTab === "therapists" ? (
@@ -773,7 +941,7 @@ const HeadMaster = () => {
                     placeholder="Search therapists..."
                     className="w-[443px] pl-10 pr-4 py-3 rounded-xl border bg-[#FAF9F6] shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all duration-300 placeholder:text-gray-400 hover:placeholder:text-gray-600"
                     value={therapistSearch}
-                    onChange={e => setTherapistSearch(e.target.value)}
+                    onChange={(e) => setTherapistSearch(e.target.value)}
                   />
                   <svg
                     className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
@@ -790,17 +958,21 @@ const HeadMaster = () => {
                 </div>
 
                 {/* Add Therapist Button */}
-                <button 
+                <button
                   onClick={handleAddTherapist}
                   className="px-6 py-3 bg-[#E38B52] text-white rounded-xl hover:bg-[#E38B52]/90 transition-all duration-200 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3),inset_0_4px_8px_rgba(255,255,255,0.2)] hover:-translate-y-1 hover:scale-105 flex items-center gap-2"
                 >
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    className="h-5 w-5" 
-                    viewBox="0 0 20 20" 
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
                     fill="currentColor"
                   >
-                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    <path
+                      fillRule="evenodd"
+                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                   Add Therapist
                 </button>
@@ -809,33 +981,58 @@ const HeadMaster = () => {
               {/* Therapists List */}
               <div className="grid grid-cols-1 gap-4 px-4">
                 {therapistsLoading && (
-                  <div className="text-center text-[#6F6C8F]">Loading therapists...</div>
+                  <div className="text-center text-[#6F6C8F]">
+                    Loading therapists...
+                  </div>
                 )}
-                {!therapistsLoading && therapists.filter(therapist =>
-                  therapist.name.toLowerCase().includes(therapistSearch.toLowerCase()) ||
-                  (therapist.qualifications_details && therapist.qualifications_details.toLowerCase().includes(therapistSearch.toLowerCase())) ||
-                  (therapist.specialization && therapist.specialization.toLowerCase().includes(therapistSearch.toLowerCase())) ||
-                  (therapist.mobile_number && therapist.mobile_number.includes(therapistSearch))
+                {!therapistsLoading &&
+                therapists.filter(
+                  (therapist) =>
+                    therapist.name
+                      .toLowerCase()
+                      .includes(therapistSearch.toLowerCase()) ||
+                    (therapist.qualifications_details &&
+                      therapist.qualifications_details
+                        .toLowerCase()
+                        .includes(therapistSearch.toLowerCase())) ||
+                    (therapist.specialization &&
+                      therapist.specialization
+                        .toLowerCase()
+                        .includes(therapistSearch.toLowerCase())) ||
+                    (therapist.mobile_number &&
+                      therapist.mobile_number.includes(therapistSearch)),
                 ).length === 0 ? (
-                  <div className="text-center text-[#6F6C8F]">No therapists found.</div>
+                  <div className="text-center text-[#6F6C8F]">
+                    No therapists found.
+                  </div>
                 ) : (
                   therapists
-                    .filter(therapist =>
-                      therapist.name.toLowerCase().includes(therapistSearch.toLowerCase()) ||
-                      (therapist.qualifications_details && therapist.qualifications_details.toLowerCase().includes(therapistSearch.toLowerCase())) ||
-                      (therapist.specialization && therapist.specialization.toLowerCase().includes(therapistSearch.toLowerCase())) ||
-                      (therapist.mobile_number && therapist.mobile_number.includes(therapistSearch))
+                    .filter(
+                      (therapist) =>
+                        therapist.name
+                          .toLowerCase()
+                          .includes(therapistSearch.toLowerCase()) ||
+                        (therapist.qualifications_details &&
+                          therapist.qualifications_details
+                            .toLowerCase()
+                            .includes(therapistSearch.toLowerCase())) ||
+                        (therapist.specialization &&
+                          therapist.specialization
+                            .toLowerCase()
+                            .includes(therapistSearch.toLowerCase())) ||
+                        (therapist.mobile_number &&
+                          therapist.mobile_number.includes(therapistSearch)),
                     )
                     .map((therapist) => (
-                      <div 
+                      <div
                         key={therapist.id}
                         onClick={() => handleTherapistClick(therapist.id)}
                         className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer"
                       >
                         <div className="flex items-center space-x-4 text-[#170F49]">
                           <div className="w-16 h-16 rounded-lg overflow-hidden">
-                            <img 
-                              src={`https://eu.ui-avatars.com/api/?name=${therapist.name.replace(' ', '+')}&size=250`}
+                            <img
+                              src={`https://eu.ui-avatars.com/api/?name=${therapist.name.replace(" ", "+")}&size=250`}
                               alt="Therapist"
                               className="w-full h-full object-cover"
                             />
@@ -846,44 +1043,77 @@ const HeadMaster = () => {
                             </h3>
                             <div className="space-y-1">
                               <p className="text-sm text-[#6F6C8F]">
-                                <span className="font-medium">Mobile:</span> {therapist.mobile_number}
+                                <span className="font-medium">Mobile:</span>{" "}
+                                {therapist.mobile_number}
                               </p>
                               {therapist.specialization && (
                                 <p className="text-sm text-[#6F6C8F]">
-                                  <span className="font-medium">Specialization:</span> {therapist.specialization}
+                                  <span className="font-medium">
+                                    Specialization:
+                                  </span>{" "}
+                                  {therapist.specialization}
                                 </p>
                               )}
                               <p className="text-sm text-[#6F6C8F]">
-                                <span className="font-medium">Qualifications:</span> {therapist.qualifications_details}
+                                <span className="font-medium">
+                                  Qualifications:
+                                </span>{" "}
+                                {therapist.qualifications_details}
                               </p>
                             </div>
                           </div>
                           <div className="flex space-x-2">
-                            <button 
+                            <button
                               onClick={() => handleTherapistClick(therapist.id)}
                               className="text-[#E38B52] hover:text-[#E38B52]/90 transition-colors p-2 rounded-lg hover:bg-[#E38B52]/10"
                               title="View Therapist Details"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 5l7 7-7 7"
+                                />
                               </svg>
                             </button>
-                            <button 
+                            <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteTherapist(therapist.id, therapist.name);
+                                handleDeleteTherapist(
+                                  therapist.id,
+                                  therapist.name,
+                                );
                               }}
                               className="text-red-500 hover:text-red-700 transition-colors p-2 rounded-lg hover:bg-[rgba(227,139,82,0.2)]"
                               title="Delete Therapist"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
                               </svg>
                             </button>
                           </div>
                         </div>
                       </div>
-                  )))}
+                    ))
+                )}
               </div>
             </>
           ) : null}
@@ -934,7 +1164,9 @@ const HeadMaster = () => {
             #ff0080,
             #ff0000
           );
-          animation: float 15s infinite ease-in-out, spin 15s linear infinite;
+          animation:
+            float 15s infinite ease-in-out,
+            spin 15s linear infinite;
         }
         @keyframes spin {
           from {
@@ -955,26 +1187,33 @@ const HeadMaster = () => {
         }
 
         .scrollbar-thin::-webkit-scrollbar-thumb {
-          background: #E38B52;
+          background: #e38b52;
           border-radius: 5px;
         }
 
         .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-          background: #E38B52;
+          background: #e38b52;
         }
 
         /* Firefox */
         .scrollbar-thin {
           scrollbar-width: auto;
-          scrollbar-color: #E38B52 transparent;
+          scrollbar-color: #e38b52 transparent;
         }
 
         @keyframes float-particle {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(var(--tx), var(--ty)) scale(0.8); }
+          0%,
+          100% {
+            transform: translate(0, 0) scale(1);
+          }
+          50% {
+            transform: translate(var(--tx), var(--ty)) scale(0.8);
+          }
         }
 
-        .particle-1, .particle-2, .particle-3 {
+        .particle-1,
+        .particle-2,
+        .particle-3 {
           position: absolute;
           width: 4px;
           height: 4px;
@@ -1015,23 +1254,39 @@ const HeadMaster = () => {
             <div className="text-center">
               {/* Warning Icon */}
               <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-                <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                <svg
+                  className="h-8 w-8 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  />
                 </svg>
               </div>
-              
+
               {/* Title */}
               <h3 className="text-lg font-bold text-gray-900 mb-2">
                 Delete Teacher
               </h3>
-              
+
               {/* Message */}
               <p className="text-sm text-gray-600 mb-6">
-                Are you sure you want to delete <span className="font-semibold text-[#170F49]">{teacherToDelete?.name}</span>? 
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-[#170F49]">
+                  {teacherToDelete?.name}
+                </span>
+                ?
                 <br />
-                <span className="text-red-600 font-medium">This action cannot be undone.</span>
+                <span className="text-red-600 font-medium">
+                  This action cannot be undone.
+                </span>
               </p>
-              
+
               {/* Buttons */}
               <div className="flex space-x-3">
                 <button
@@ -1052,14 +1307,24 @@ const HeadMaster = () => {
         </div>
       )}
 
-{/* Custom Delete Confirmation Modal for Students */}
-{showStudentDeleteConfirm && (
+      {/* Custom Delete Confirmation Modal for Students */}
+      {showStudentDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl transform transition-all">
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-                <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                <svg
+                  className="h-8 w-8 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  />
                 </svg>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">
@@ -1086,7 +1351,7 @@ const HeadMaster = () => {
           </div>
         </div>
       )}
-      
+
       {/* Custom Delete Confirmation Modal for Therapists */}
       {showTherapistDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1094,23 +1359,39 @@ const HeadMaster = () => {
             <div className="text-center">
               {/* Warning Icon */}
               <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-                <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                <svg
+                  className="h-8 w-8 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  />
                 </svg>
               </div>
-              
+
               {/* Title */}
               <h3 className="text-lg font-bold text-gray-900 mb-2">
                 Delete Therapist
               </h3>
-              
+
               {/* Message */}
               <p className="text-sm text-gray-600 mb-6">
-                Are you sure you want to delete <span className="font-semibold text-[#170F49]">{therapistToDelete?.name}</span>? 
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-[#170F49]">
+                  {therapistToDelete?.name}
+                </span>
+                ?
                 <br />
-                <span className="text-red-600 font-medium">This action cannot be undone.</span>
+                <span className="text-red-600 font-medium">
+                  This action cannot be undone.
+                </span>
               </p>
-              
+
               {/* Buttons */}
               <div className="flex space-x-3">
                 <button
@@ -1130,12 +1411,11 @@ const HeadMaster = () => {
           </div>
         </div>
       )}
-      
+
       {notification.message && (
-        <div 
+        <div
           className={`fixed top-8 right-8 z-50 text-white px-6 py-3 rounded-xl shadow-lg transition-transform transform-gpu animate-fade-in-down
-            ${notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`
-          }
+            ${notification.type === "success" ? "bg-green-500" : "bg-red-500"}`}
         >
           <div className="flex items-center gap-3">
             <span>{notification.message}</span>
@@ -1145,7 +1425,6 @@ const HeadMaster = () => {
 
       {/* THIS IS THE NEW LINE YOU ADD */}
       <ScrollToTopButton />
-
     </div>
   );
 };
