@@ -2660,6 +2660,18 @@ const addCellToColumn = (columnKey) => {
     }
   };
 
+  const renderReportTextField = (label, value) => {
+    const text = typeof value === "string" ? value.trim() : value;
+    if (!text) return null;
+
+    return (
+      <div>
+        <div className="text-xs text-[#6F6C90]">{label}</div>
+        <div className="text-sm whitespace-pre-wrap">{value}</div>
+      </div>
+    );
+  };
+
   useEffect(() => {
   const fetchTeacherUsernames = async () => {
     try {
@@ -4897,6 +4909,42 @@ const isPhaseUnlocked = (table, targetPhase) => {
 
                               yPosition += 3;
 
+                              const clinicalFields = [
+                                ["Present Complaints", report.present_complaints],
+                                ["Current Observation", report.current_observation],
+                                ["Assessment Done", report.assessment_done],
+                                ["Provisional Diagnosis", report.provisional_diagnosis],
+                              ];
+
+                              clinicalFields.forEach(([label, value]) => {
+                                const text = typeof value === "string" ? value.trim() : value;
+                                if (!text) {
+                                  return;
+                                }
+
+                                if (yPosition > pageHeight - 20) {
+                                  pdf.addPage();
+                                  yPosition = 20;
+                                }
+                                pdf.setFont(undefined, "bold");
+                                pdf.text(`${label}:`, marginLeft, yPosition);
+                                yPosition += 5;
+                                pdf.setFont(undefined, "normal");
+                                const lines = pdf.splitTextToSize(
+                                  String(value),
+                                  pageWidth - marginLeft - marginRight,
+                                );
+                                lines.forEach((line) => {
+                                  if (yPosition > pageHeight - 20) {
+                                    pdf.addPage();
+                                    yPosition = 20;
+                                  }
+                                  pdf.text(line, marginLeft + 5, yPosition);
+                                  yPosition += 5;
+                                });
+                                yPosition += 3;
+                              });
+
                               // Progress Notes
                               if (report.progress_notes) {
                                 if (yPosition > pageHeight - 20) {
@@ -5577,6 +5625,22 @@ const isPhaseUnlocked = (table, targetPhase) => {
                                 </div>
                               </summary>
                               <div className="mt-4 text-sm text-[#333] space-y-3">
+                                {renderReportTextField(
+                                  "Present Complaints",
+                                  r.present_complaints,
+                                )}
+                                {renderReportTextField(
+                                  "Current Observation",
+                                  r.current_observation,
+                                )}
+                                {renderReportTextField(
+                                  "Assessment Done",
+                                  r.assessment_done,
+                                )}
+                                {renderReportTextField(
+                                  "Provisional Diagnosis",
+                                  r.provisional_diagnosis,
+                                )}
                                 {r.progress_notes && (
                                   <div>
                                     <div className="text-xs text-[#6F6C90]">

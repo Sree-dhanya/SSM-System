@@ -11,6 +11,13 @@ class TherapyReport(Base):
     teacher_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     report_date = Column(Date, nullable=False)
     therapy_type = Column(String, nullable=True)
+
+    # New Clinical Fields
+    present_complaints = Column(Text, nullable=True)
+    current_observation = Column(Text, nullable=True)
+    assessment_done = Column(Text, nullable=True)
+    provisional_diagnosis = Column(Text, nullable=True)
+
     progress_notes = Column(Text, nullable=True)
     
     # Store individual goals with checkboxes and notes
