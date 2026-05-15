@@ -74,9 +74,13 @@ def read_students(
 
     total = query.count()
 
-    # Build a Page and return a JSON-serializable dict to avoid ResponseValidationError
+    # Build a Page. Some deployment environments have trouble validating
+    # Pydantic generics (Page[T]). Return a plain dict reliably by using
+    # `.dict()` when available, otherwise return the dict directly.
     page = Page.create(items=students_with_photos, total=total, params=pagination)
-    return page.dict()
+    if hasattr(page, "dict"):
+        return page.dict()
+    return page
 # --------------------------------------------------------------------
 # ▲▲▲ END OF MODIFIED FUNCTION ▲▲▲
 # --------------------------------------------------------------------
