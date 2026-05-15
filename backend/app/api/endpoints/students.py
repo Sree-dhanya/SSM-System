@@ -6,6 +6,15 @@ from typing import List, Optional, Any, Dict
 # Renamed import to avoid variable name conflicts
 from app.crud.student import student as crud_student
 from app.schemas.student import Student, StudentCreate, StudentUpdate
+from pydantic import BaseModel
+
+
+class StudentsPage(BaseModel):
+    items: List[Student]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
 from app.db.session import get_db
 from app.utils.pagination import PageParams, Page
 from app.api.deps import get_current_active_user
@@ -16,7 +25,7 @@ router = APIRouter()
 # --------------------------------------------------------------------
 # ▼▼▼ THIS IS THE FULLY MODIFIED FUNCTION ▼▼▼
 # --------------------------------------------------------------------
-@router.get("/")
+@router.get("/", response_model=StudentsPage)
 def read_students(
     db: Session = Depends(get_db),
     pagination: PageParams = Depends(),
