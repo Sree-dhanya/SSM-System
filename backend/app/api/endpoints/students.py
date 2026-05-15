@@ -29,7 +29,7 @@ def read_students(
     students_from_db = crud_student.get_filtered(
         db,
         skip=pagination.skip,
-        limit=pagination.page_size,
+        limit=pagination.limit,
         search=search,
         class_name=class_name
     )
@@ -74,13 +74,9 @@ def read_students(
 
     total = query.count()
 
-    # Return as dict to avoid Pydantic validation
-    return {
-        "items": students_with_photos,
-        "total": total,
-        "page": pagination.page,
-        "page_size": pagination.page_size
-    }
+    # Build a Page and return a JSON-serializable dict to avoid ResponseValidationError
+    page = Page.create(items=students_with_photos, total=total, params=pagination)
+    return page.dict()
 # --------------------------------------------------------------------
 # ▲▲▲ END OF MODIFIED FUNCTION ▲▲▲
 # --------------------------------------------------------------------
