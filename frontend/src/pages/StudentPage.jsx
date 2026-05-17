@@ -1765,6 +1765,7 @@ const addCellToColumn = (columnKey) => {
   const [uploadedDocTypes, setUploadedDocTypes] = useState({});
     const [showDocumentDeleteConfirm, setShowDocumentDeleteConfirm] = useState(false);
   const [pendingDocumentDelete, setPendingDocumentDelete] = useState(null);
+  const [previewDocument, setPreviewDocument] = useState(null);
     const SPECIAL_DOC_TYPES = ["aadhar", "birth_certificate", "ration_card"];
         
     
@@ -1805,6 +1806,18 @@ const addCellToColumn = (columnKey) => {
   
   const getDocumentTypeId = (doc) =>
     doc?.documentType || doc?.document_type || doc?.type || "";
+
+  const getDocumentLabel = (doc) =>
+    doc?.documentLabel || doc?.document_label || DOCUMENT_TYPE_LABELS[getDocumentTypeId(doc)] || getDocumentTypeId(doc) || "Document";
+
+  const getDocumentCategoryLabel = (doc) =>
+    doc?.documentLabel || doc?.document_label || DOCUMENT_TYPE_LABELS[getDocumentTypeId(doc)] || "";
+
+  const getDocumentMimeType = (doc) =>
+    (doc?.content_type || doc?.mime_type || "application/pdf").toLowerCase();
+
+  const getDocumentGroupLabel = (doc) =>
+    getDocumentCategoryLabel(doc) || "Other Documents";
   
   const syncUploadedDocumentsByType = (docs = []) => {
     const next = {};
@@ -1826,6 +1839,15 @@ const addCellToColumn = (columnKey) => {
       }, {}),
     );
   };
+
+  const documentsByCategory = documents.reduce((groups, doc) => {
+    const categoryLabel = getDocumentCategoryLabel(doc) || "Other Documents";
+    if (!groups[categoryLabel]) {
+      groups[categoryLabel] = [];
+    }
+    groups[categoryLabel].push(doc);
+    return groups;
+  }, {});
 
   // Toast notification state
   const [toast, setToast] = useState({ show: false, message: "", type: "" });
@@ -2252,8 +2274,11 @@ const addCellToColumn = (columnKey) => {
     const file = e.target.files[0];
     if (file) {
       // Validate file type
-      if (!file.name.toLowerCase().endsWith(".pdf")) {
-        showToast("Only PDF files are allowed", "error");
+      const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+      const fileType = (file.type || "").toLowerCase();
+      const fileName = (file.name || "").toLowerCase();
+      if (!allowedTypes.includes(fileType) && !fileName.match(/\.(pdf|png|jpg|jpeg)$/)) {
+        showToast("Only PDF, PNG, JPG, or JPEG files are allowed", "error");
         if (documentInputRef.current) documentInputRef.current.value = null;
         return;
       }
@@ -2369,6 +2394,7 @@ const addCellToColumn = (columnKey) => {
         config,
       );
       const document = res.data;
+      const mimeType = getDocumentMimeType(document);
 
       // Convert base64 to blob and download
       const base64Data = document.file_data.split(",")[1] || document.file_data;
@@ -2378,7 +2404,7 @@ const addCellToColumn = (columnKey) => {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "application/pdf" });
+      const blob = new Blob([byteArray], { type: mimeType });
 
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -2412,8 +2438,9 @@ const addCellToColumn = (columnKey) => {
         config,
       );
       const document = res.data;
+      const mimeType = getDocumentMimeType(document);
 
-      // Convert base64 to blob and open in new tab
+      // Convert base64 to blob and open in a preview modal
       const base64Data = document.file_data.split(",")[1] || document.file_data;
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
@@ -2421,18 +2448,38 @@ const addCellToColumn = (columnKey) => {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "application/pdf" });
+      const blob = new Blob([byteArray], { type: mimeType });
 
       const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-
-      // Clean up after a delay to allow the browser to open it
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (previewDocument?.url) {
+        URL.revokeObjectURL(previewDocument.url);
+      }
+      setPreviewDocument({
+        id: documentId,
+        name: document.name || documentName,
+        mimeType,
+        url,
+      });
     } catch (error) {
       console.error("Error viewing document:", error);
       showToast("Failed to view document.", "error");
     }
   };
+
+  const closeDocumentPreview = () => {
+    if (previewDocument?.url) {
+      URL.revokeObjectURL(previewDocument.url);
+    }
+    setPreviewDocument(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewDocument?.url) {
+        URL.revokeObjectURL(previewDocument.url);
+      }
+    };
+  }, [previewDocument]);
 
     const confirmDeleteDocument = (documentId, documentName, documentTypeId) => {
     setPendingDocumentDelete({ documentId, documentName, documentTypeId });
@@ -2492,8 +2539,8 @@ const addCellToColumn = (columnKey) => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("documentType", docTypeId);
+      formData.append("documentType", docTypeId);
       formData.append("documentTypeLabel", docTypeLabel);
-      formData.append("studentId", id);
   
       const response = await axios.post(
         `${baseUrl}/api/v1/students/${id}/documents`,
@@ -6595,7 +6642,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
                           onClick={() => {
                             const input = document.createElement("input");
                             input.type = "file";
-                            input.accept = ".pdf";
+                            input.accept = ".pdf,.png,.jpg,.jpeg";
                             input.onchange = (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
@@ -6603,8 +6650,11 @@ const isPhaseUnlocked = (table, targetPhase) => {
                                   showToast("File size exceeds 5MB", "error");
                                   return;
                                 }
-                                if (file.type !== "application/pdf") {
-                                  showToast("Only PDF files allowed", "error");
+                                const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+                                const fileType = (file.type || "").toLowerCase();
+                                const fileName = (file.name || "").toLowerCase();
+                                if (!allowedTypes.includes(fileType) && !fileName.match(/\.(pdf|png|jpg|jpeg)$/)) {
+                                  showToast("Only PDF, PNG, JPG, or JPEG files allowed", "error");
                                   return;
                                 }
                                 handleDocumentTypeUpload(file, docType.id, docType.label);
@@ -6630,6 +6680,27 @@ const isPhaseUnlocked = (table, targetPhase) => {
                           </svg>
                           {uploadedDocTypes[docType.id] ? "Uploaded" : "Upload"}
                         </button>
+
+                        {uploadedDocumentsByType[docType.id]?.length > 0 && (
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => handleViewDocument(uploadedDocumentsByType[docType.id][0].id, uploadedDocumentsByType[docType.id][0].name)}
+                              className="flex-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition-all duration-200 font-medium text-sm"
+                              title={`View ${docType.label}`}
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadDocument(uploadedDocumentsByType[docType.id][0].id, uploadedDocumentsByType[docType.id][0].name)}
+                              className="flex-1 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg transition-all duration-200 font-medium text-sm"
+                              title={`Download ${docType.label}`}
+                            >
+                              Download
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -6662,92 +6733,127 @@ const isPhaseUnlocked = (table, targetPhase) => {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {Object.entries(DOCUMENT_TYPE_LABELS).map(([typeKey, label]) => {
-                        const docsForType = uploadedDocumentsByType[typeKey] || [];
-                  
-                        if (docsForType.length === 0) return null;
-                  
-                        return (
-                          <div key={typeKey} className="space-y-3">
-                            <h5 className="text-sm font-semibold text-[#170F49]">{label}</h5>
-                  
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {docsForType.map((doc) => (
-                                <div
-                                  key={doc.id}
-                                  className="group p-5 bg-gradient-to-br from-white to-orange-50/30 rounded-xl border border-[#E38B52]/20 hover:border-[#E38B52]/40 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
-                                >
-                                  <div className="flex items-start gap-3 mb-4">
-                                    <div className="p-3 bg-[#E38B52]/10 rounded-lg group-hover:bg-[#E38B52]/20 transition-colors duration-200">
-                                      <svg
-                                        width="24"
-                                        height="24"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="#E38B52"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                        <polyline points="14 2 14 8 20 8" />
-                                      </svg>
-                                    </div>
-                  
-                                    <div className="flex-1 min-w-0">
-                                      <p
-                                        className="font-semibold text-[#170F49] text-sm truncate"
-                                        title={doc.name}
-                                      >
-                                        {doc.name}
-                                      </p>
-                                      <p className="text-xs text-[#6F6C90] mt-1">
-                                        {(doc.file_size / 1024).toFixed(2)} KB •{" "}
-                                        {new Date(doc.upload_date).toLocaleDateString()}
-                                      </p>
-                                    </div>
+                      {Object.entries(documentsByCategory).map(([categoryLabel, docsInCategory]) => (
+                        <div key={categoryLabel} className="space-y-3">
+                          <h5 className="text-sm font-semibold text-[#170F49]">{categoryLabel}</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {docsInCategory.map((doc) => (
+                              <div
+                                key={doc.id}
+                                className="group p-5 bg-gradient-to-br from-white to-orange-50/30 rounded-xl border border-[#E38B52]/20 hover:border-[#E38B52]/40 hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02]"
+                              >
+                                <div className="flex items-start gap-3 mb-4">
+                                  <div className="p-3 bg-[#E38B52]/10 rounded-lg group-hover:bg-[#E38B52]/20 transition-colors duration-200">
+                                    <svg
+                                      width="24"
+                                      height="24"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="#E38B52"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14 2 14 8 20 8" />
+                                    </svg>
                                   </div>
-                  
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => handleViewDocument(doc.id, doc.name)}
-                                      className="flex-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
-                                      title="View"
+
+                                  <div className="flex-1 min-w-0">
+                                    <p
+                                      className="font-semibold text-[#170F49] text-sm truncate"
+                                      title={`${getDocumentLabel(doc)} - ${doc.name}`}
                                     >
-                                      View
-                                    </button>
-                  
-                                    <button
-                                      onClick={() => handleDownloadDocument(doc.id, doc.name)}
-                                      className="flex-1 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
-                                      title="Download"
-                                    >
-                                      Download
-                                    </button>
-                  
-                                    <button
-                                      onClick={() =>
-                                        confirmDeleteDocument(
-                                          doc.id,
-                                          doc.name,
-                                          getDocumentTypeId(doc),
-                                        )
-                                      }
-                                      className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg transition-all duration-200 font-medium text-sm"
-                                      title="Delete"
-                                    >
-                                      Delete
-                                    </button>
+                                      {getDocumentLabel(doc)}
+                                    </p>
+                                    <p className="text-xs text-[#6F6C90] mt-1 truncate" title={doc.name}>
+                                      {doc.name}
+                                    </p>
+                                    <p className="text-xs text-[#6F6C90] mt-1">
+                                      {(doc.file_size / 1024).toFixed(2)} KB • {new Date(doc.upload_date).toLocaleDateString()}
+                                    </p>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
+
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleViewDocument(doc.id, doc.name)}
+                                    className="flex-1 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
+                                    title="View"
+                                  >
+                                    View
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleDownloadDocument(doc.id, doc.name)}
+                                    className="flex-1 px-3 py-2 bg-green-50 hover:bg-green-100 text-green-600 hover:text-green-700 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2"
+                                    title="Download"
+                                  >
+                                    Download
+                                  </button>
+
+                                  <button
+                                    onClick={() =>
+                                      confirmDeleteDocument(
+                                        doc.id,
+                                        doc.name,
+                                        getDocumentTypeId(doc),
+                                      )
+                                    }
+                                    className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg transition-all duration-200 font-medium text-sm"
+                                    title="Delete"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
+
+                {previewDocument && (
+                  <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center px-4 py-6">
+                    <div className="w-full max-w-5xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+                      <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-[#E38B52]">Document Preview</p>
+                          <h4 className="text-lg font-bold text-[#170F49] truncate" title={previewDocument.name}>
+                            {previewDocument.name}
+                          </h4>
+                          <p className="text-xs text-gray-500">{previewDocument.mimeType}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={closeDocumentPreview}
+                          className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+                        >
+                          Close
+                        </button>
+                      </div>
+                      <div className="bg-gray-50 p-4">
+                        {previewDocument.mimeType.startsWith("image/") ? (
+                          <div className="flex justify-center">
+                            <img
+                              src={previewDocument.url}
+                              alt={previewDocument.name}
+                              className="max-h-[75vh] w-auto max-w-full rounded-2xl border border-gray-200 bg-white object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <iframe
+                            title={previewDocument.name}
+                            src={previewDocument.url}
+                            className="h-[75vh] w-full rounded-2xl border border-gray-200 bg-white"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : activeTab === "iep" ? (

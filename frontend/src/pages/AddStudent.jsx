@@ -120,6 +120,8 @@ const AddStudent = () => {
     passbook: null,
     nish_psychological_assessment: null
   });
+  const [persistedDocuments, setPersistedDocuments] = useState([]);
+  const [previewDocument, setPreviewDocument] = useState(null);
  const [studentForm, setStudentForm] = useState({
     // Existing Student Details
     name: '',
@@ -292,6 +294,7 @@ const AddStudent = () => {
               const normalized = { ...data, caste: normalizeCaste(data?.caste) };
               setStudentForm(normalized);
               setSavedStudent(normalized);
+              setPersistedDocuments(Array.isArray(data?.documents) ? data.documents : []);
         } catch (error) {
           // Network errors (fetch failed) will be TypeError in browsers
           console.error('Network error while fetching student for edit:', error);
@@ -351,21 +354,186 @@ const AddStudent = () => {
   const handleDocumentUpload = (docType) => (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.type !== 'application/pdf') {
-        alert('Please upload only PDF files.');
+      const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+      if (!allowedTypes.includes((file.type || '').toLowerCase())) {
+        alert('Please upload only PDF, PNG, JPG, or JPEG files.');
         e.target.value = ''; // Reset the input
         return;
+      }
+      if (previewDocument?.key === docType && previewDocument?.url) {
+        URL.revokeObjectURL(previewDocument.url);
+        setPreviewDocument(null);
       }
       setDocuments((prev) => ({ ...prev, [docType]: file }));
     }
   };
 
-  const handleRemoveDocument = (docType) => {
-    setDocuments((prev) => ({ ...prev, [docType]: null }));
-    // Reset the file input
-    const input = document.getElementById(`document-${docType}`);
-    if (input) input.value = '';
+  const documentDefinitions = [
+    { key: 'aadhar', label: 'Aadhar Card' },
+    { key: 'birth_certificate', label: 'Birth Certificate' },
+    { key: 'disability_certificate', label: 'Disability Certificate' },
+    { key: 'ration_card', label: 'Ration Card' },
+    { key: 'pwd_registration', label: 'Person with Disability Registration' },
+    { key: 'medical_certificate', label: 'Medical Report' },
+    { key: 'ud_id', label: 'Unique Disability ID (UD ID)' },
+    { key: 'hospital_assessment_report', label: 'Assessment Report from Hospital' },
+    { key: 'passbook', label: 'Passbook' },
+    { key: 'nish_psychological_assessment', label: 'NISH Psychological Assessment Report' }
+  ];
+
+  const getPersistedDocumentForType = (docType) => persistedDocuments.find((doc) => doc.documentType === docType) || null;
+
+  const buildDocumentPayload = async (studentId, docType, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('document_type', docType);
+    const definition = documentDefinitions.find((doc) => doc.key === docType);
+    if (definition) {
+      formData.append('document_label', definition.label);
+    }
+
+    const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+    const response = await fetch(`${baseUrl}/api/v1/students/${studentId}/documents`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `Failed to upload ${definition?.label || docType}`);
+    }
+
+    return response.json();
   };
+
+  const refreshPersistedDocuments = async (studentId) => {
+    const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+    const response = await fetch(`${baseUrl}/api/v1/students/${studentId}`);
+    if (!response.ok) {
+      throw new Error('Failed to reload saved documents.');
+    }
+    const data = await response.json();
+    setPersistedDocuments(Array.isArray(data?.documents) ? data.documents : []);
+    return data;
+  };
+
+  const uploadPendingDocuments = async (studentId) => {
+    const pendingEntries = Object.entries(documents).filter(([, value]) => value instanceof File);
+    if (!pendingEntries.length) {
+      return;
+    }
+
+    for (const [docType, file] of pendingEntries) {
+      const previousDocument = getPersistedDocumentForType(docType);
+      await buildDocumentPayload(studentId, docType, file);
+      if (previousDocument?.id) {
+        const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+        await fetch(`${baseUrl}/api/v1/students/${studentId}/documents/${previousDocument.id}`, {
+          method: 'DELETE'
+        }).catch(() => null);
+      }
+    }
+
+    await refreshPersistedDocuments(studentId);
+
+    setDocuments((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((key) => {
+        if (next[key] instanceof File) {
+          next[key] = null;
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleViewDocument = (docType, docLabel) => {
+    const pendingFile = documents[docType];
+    const persistedDocument = getPersistedDocumentForType(docType);
+
+    if (previewDocument?.url) {
+      URL.revokeObjectURL(previewDocument.url);
+    }
+
+    if (pendingFile instanceof File) {
+      setPreviewDocument({
+        key: docType,
+        label: docLabel,
+        name: pendingFile.name,
+        type: pendingFile.type || 'application/pdf',
+        url: URL.createObjectURL(pendingFile)
+      });
+      return;
+    }
+
+    if (persistedDocument) {
+      setPreviewDocument({
+        key: docType,
+        label: persistedDocument.documentLabel || docLabel,
+        name: persistedDocument.name,
+        type: persistedDocument.content_type || 'application/pdf',
+        url: null
+      });
+
+      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+      fetch(`${baseUrl}/api/v1/students/${savedStudent?.id || id}/documents/${persistedDocument.id}`)
+        .then((response) => response.json())
+        .then((data) => {
+          const sourceUrl = data.file_data || '';
+          setPreviewDocument((current) => current ? ({ ...current, url: sourceUrl }) : current);
+        })
+        .catch(() => {
+          alert('Failed to load document preview.');
+          setPreviewDocument(null);
+        });
+    }
+  };
+
+  const handleRemoveDocument = (docType) => {
+    const pendingFile = documents[docType];
+    const persistedDocument = getPersistedDocumentForType(docType);
+
+    if (previewDocument?.key === docType && previewDocument?.url) {
+      URL.revokeObjectURL(previewDocument.url);
+      setPreviewDocument(null);
+    }
+
+    if (pendingFile instanceof File || !persistedDocument) {
+      setDocuments((prev) => ({ ...prev, [docType]: null }));
+      const input = document.getElementById(`document-${docType}`);
+      if (input) input.value = '';
+      return;
+    }
+
+    const deletePersistedDocument = async () => {
+      const studentId = savedStudent?.id || id;
+      if (!studentId) return;
+
+      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+      const response = await fetch(`${baseUrl}/api/v1/students/${studentId}/documents/${persistedDocument.id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to delete document');
+      }
+
+      await refreshPersistedDocuments(studentId);
+    };
+
+    deletePersistedDocument().catch((error) => {
+      alert(error.message || 'Failed to delete document');
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (previewDocument?.url) {
+        URL.revokeObjectURL(previewDocument.url);
+      }
+    };
+  }, [previewDocument]);
 
    const handleCheckboxChange = (field) => (e) => {
     setStudentForm((prev) => ({ ...prev, [field]: e.target.checked }));
@@ -610,8 +778,10 @@ const handleSaveAll = async () => {
       const studentData = await saveStudent();
       
       if (studentData && studentData.id) {
+        await uploadPendingDocuments(studentData.id);
         // Step 2: Show the final success popup
-        setSavedStudent(studentData);
+        const refreshedStudent = await refreshPersistedDocuments(studentData.id).catch(() => studentData);
+        setSavedStudent(refreshedStudent);
         setShowPopup(true);
       } else {
         throw new Error("Could not get student ID after saving.");
@@ -1364,18 +1534,15 @@ const developmentHistoryMap = {
                     {/* Document Upload Areas */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Document Upload Component */}
-                      {[
-                        { key: 'aadhar', label: 'Aadhar' },
-                        { key: 'birth_certificate', label: 'Birth Certificate' },
-                        { key: 'disability_certificate', label: 'Disability Certificate' },
-                        { key: 'ration_card', label: 'Ration Card' },
-                        { key: 'pwd_registration', label: 'Person with Disability Registration' },
-                        { key: 'medical_certificate', label: 'Medical Certificate' },
-                        { key: 'ud_id', label: 'Unique Disability ID (UD ID)' },
-                        { key: 'hospital_assessment_report', label: 'Assessment Report from Hospital' },
-                        { key: 'passbook', label: 'Passbook' },
-                        { key: 'nish_psychological_assessment', label: 'NISH Psychological Assessment Report' }
-                      ].map((doc) => (
+                      {documentDefinitions.map((doc) => {
+                        const pendingFile = documents[doc.key];
+                        const persistedDocument = getPersistedDocumentForType(doc.key);
+                        const displayName = pendingFile instanceof File
+                          ? pendingFile.name
+                          : persistedDocument?.name || `Upload ${doc.label} (PDF)`;
+                        const hasDocument = Boolean(pendingFile instanceof File || persistedDocument);
+
+                        return (
                         <div key={doc.key} className="space-y-2">
                           <label className="block text-sm font-medium text-[#170F49] mb-2">{doc.label}</label>
                           <label 
@@ -1398,69 +1565,118 @@ const developmentHistoryMap = {
                               <line x1="12" y1="3" x2="12" y2="15"/>
                             </svg>
                             <span className="text-[#E38B52] font-medium text-sm">
-                              {documents[doc.key] ? documents[doc.key].name : `Upload ${doc.label} (PDF)`}
+                              {displayName}
                             </span>
                           </label>
                           <input 
                             type="file" 
                             id={`document-${doc.key}`} 
                             className="hidden" 
-                            accept=".pdf" 
+                            accept=".pdf,.png,.jpg,.jpeg" 
                             onChange={handleDocumentUpload(doc.key)}
                           />
-                          {documents[doc.key] && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveDocument(doc.key)}
-                              className="text-red-500 text-xs hover:text-red-700"
-                            >
-                              Remove
-                            </button>
+                          {hasDocument && (
+                            <div className="flex items-center justify-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => handleViewDocument(doc.key, doc.label)}
+                                className="text-[#E38B52] text-xs font-semibold hover:text-[#C8742F]"
+                              >
+                                View
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDocument(doc.key)}
+                                className="text-red-500 text-xs hover:text-red-700"
+                              >
+                                Remove
+                              </button>
+                            </div>
                           )}
                         </div>
-                      ))}
+                      )})}
                     </div>
 
                     {/* Uploaded Documents List */}
-                    {Object.values(documents).some(doc => doc !== null) && (
+                    {(Object.values(documents).some(doc => doc instanceof File) || persistedDocuments.length > 0) && (
                       <div className="mt-6">
                         <h4 className="text-lg font-semibold text-[#170F49] mb-4">Uploaded Documents</h4>
                         <div className="bg-white/50 rounded-xl p-4 border border-[#E38B52]/20">
                           <ul className="space-y-2">
-                            {[
-                              { key: 'aadhar', label: 'Aadhar' },
-                              { key: 'birth_certificate', label: 'Birth Certificate' },
-                              { key: 'disability_certificate', label: 'Disability Certificate' },
-                              { key: 'ration_card', label: 'Ration Card' },
-                              { key: 'pwd_registration', label: 'Person with Disability Registration' },
-                              { key: 'medical_certificate', label: 'Medical Certificate' },
-                              { key: 'ud_id', label: 'Unique Disability ID (UD ID)' },
-                              { key: 'hospital_assessment_report', label: 'Assessment Report from Hospital' },
-                              { key: 'passbook', label: 'Passbook' },
-                              { key: 'nish_psychological_assessment', label: 'NISH Psychological Assessment Report' }
-                            ].map((doc) => documents[doc.key] && (
+                            {documentDefinitions.map((doc) => {
+                              const pendingFile = documents[doc.key];
+                              const persistedDocument = getPersistedDocumentForType(doc.key);
+                              const hasDocument = Boolean(pendingFile instanceof File || persistedDocument);
+                              if (!hasDocument) return null;
+
+                              return (
                               <li key={doc.key} className="flex items-center justify-between py-2 px-3 bg-white rounded-lg">
                                 <div className="flex items-center gap-2">
                                   <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
                                   </svg>
-                                  <span className="text-sm text-[#170F49]">{doc.label}: {documents[doc.key].name}</span>
+                                  <span className="text-sm text-[#170F49]">{doc.label}: {(pendingFile instanceof File ? pendingFile.name : persistedDocument?.name) || ''}</span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveDocument(doc.key)}
-                                  className="text-red-500 hover:text-red-700 text-xs"
-                                >
-                                  Remove
-                                </button>
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleViewDocument(doc.key, doc.label)}
+                                    className="text-[#E38B52] hover:text-[#C8742F] text-xs font-semibold"
+                                  >
+                                    View
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveDocument(doc.key)}
+                                    className="text-red-500 hover:text-red-700 text-xs"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
                               </li>
-                            ))}
+                              );
+                            })}
                           </ul>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
+                {previewDocument && (
+                  <div className="mt-6 rounded-3xl border border-[#E38B52]/25 bg-white/70 p-4 shadow-xl backdrop-blur-sm">
+                    <div className="flex items-start justify-between gap-4 border-b border-[#E38B52]/15 pb-4">
+                      <div>
+                        <p className="text-sm font-semibold text-[#E38B52]">Document Preview</p>
+                        <h4 className="text-lg font-bold text-[#170F49]">{previewDocument.label}</h4>
+                        <p className="text-xs text-gray-500 break-all">{previewDocument.name}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewDocument(null)}
+                        className="rounded-full bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200"
+                      >
+                        Close
+                      </button>
+                    </div>
+                    <div className="mt-4 rounded-2xl border border-gray-200 bg-white">
+                      {previewDocument.type?.startsWith('image/') ? (
+                        <div className="flex justify-center p-4">
+                          <img
+                            src={previewDocument.url}
+                            alt={previewDocument.label}
+                            className="max-h-[70vh] max-w-full rounded-2xl border border-gray-200 object-contain"
+                          />
+                        </div>
+                      ) : (
+                        <iframe
+                          title={`${previewDocument.label} preview`}
+                          src={previewDocument.url}
+                          className="h-[70vh] w-full rounded-2xl bg-white"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

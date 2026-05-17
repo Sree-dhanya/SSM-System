@@ -1,5 +1,5 @@
 import base64
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any, Dict
 
@@ -297,14 +297,26 @@ def upload_student_document(
     *,
     student_id: int,
     db: Session = Depends(get_db),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    document_type: Optional[str] = Form(None),
+    document_label: Optional[str] = Form(None),
+    documentType: Optional[str] = Form(None),
+    documentTypeLabel: Optional[str] = Form(None)
 ) -> Dict[str, Any]:
     """
     Upload a document/certificate (PDF) for a student. Maximum 5MB.
     """
     # Validate file type
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    allowed_content_types = {
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+    }
+    file_content_type = (file.content_type or "application/pdf").lower()
+    file_name = file.filename or "document"
+    if file_content_type not in allowed_content_types and not file_name.lower().endswith((".pdf", ".png", ".jpg", ".jpeg")):
+        raise HTTPException(status_code=400, detail="Only PDF, PNG, JPG, and JPEG files are allowed")
     
     # Read file contents
     contents = file.file.read()
@@ -318,6 +330,9 @@ def upload_student_document(
     db_student = crud_student.get(db, id=student_id)
     if not db_student:
         raise HTTPException(status_code=404, detail="Student not found")
+
+    resolved_document_type = document_type or documentType
+    resolved_document_label = document_label or documentTypeLabel
     
     # Convert to base64 for storage
     import base64
@@ -326,9 +341,14 @@ def upload_student_document(
     b64_content = base64.b64encode(contents).decode('utf-8')
     
     # Create document entry with unique ID
+    document_id = str(uuid.uuid4())
     document_entry = {
-        "id": str(uuid.uuid4()),
-        "name": file.filename,
+        "id": document_id,
+        "name": file_name,
+        "documentType": resolved_document_type,
+        "documentLabel": resolved_document_label,
+        "content_type": file_content_type,
+        "file_url": f"/api/v1/students/{student_id}/documents/{document_id}",
         "file_data": b64_content,
         "upload_date": datetime.now().isoformat(),
         "file_size": file_size
@@ -383,6 +403,10 @@ def get_student_documents(
         documents_list.append({
             "id": doc.get("id"),
             "name": doc.get("name"),
+            "documentType": doc.get("documentType"),
+            "documentLabel": doc.get("documentLabel"),
+            "content_type": doc.get("content_type") or "application/pdf",
+            "file_url": doc.get("file_url") or f"/api/v1/students/{student_id}/documents/{doc.get('id')}",
             "upload_date": doc.get("upload_date"),
             "file_size": doc.get("file_size")
         })
@@ -420,7 +444,11 @@ def download_student_document(
     return {
         "id": document.get("id"),
         "name": document.get("name"),
-        "file_data": f"data:application/pdf;base64,{document.get('file_data')}",
+        "documentType": document.get("documentType"),
+        "documentLabel": document.get("documentLabel"),
+        "content_type": document.get("content_type") or "application/pdf",
+        "file_url": document.get("file_url") or f"/api/v1/students/{student_id}/documents/{document.get('id')}",
+        "file_data": f"data:{document.get('content_type') or 'application/pdf'};base64,{document.get('file_data')}",
         "upload_date": document.get("upload_date"),
         "file_size": document.get("file_size")
     }
