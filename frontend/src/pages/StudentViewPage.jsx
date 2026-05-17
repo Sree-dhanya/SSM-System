@@ -142,6 +142,7 @@ const StudentViewPage = () => {
         bloodGroup: data.blood_group,
         category: data.category,
         class: data.class_name,
+        division: data.division,
         rollNo: data.roll_no,
         birthPlace: data.birth_place,
         houseName: data.house_name,
@@ -158,7 +159,7 @@ const StudentViewPage = () => {
         academicYear: data.academic_year,
         admissionNumber: data.admission_number,
         admissionDate: data.admission_date,
-        classTeacher: data.class_teacher,
+        // class_teacher removed
         fatherName: data.father_name,
         fatherEducation: data.father_education,
         fatherOccupation: data.father_occupation,
@@ -495,7 +496,7 @@ const StudentViewPage = () => {
                   </div>
                   <div>
                     <p className="text-sm text-[#6F6C90]">Class Teacher</p>
-                    <p className="text-[#170F49] font-medium">{student?.classTeacher || "N/A"}</p>
+                    <p className="text-[#170F49] font-medium">{student?.class || "N/A"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-[#6F6C90]">Admission Date</p>

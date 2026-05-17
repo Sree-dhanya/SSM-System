@@ -89,44 +89,44 @@ const getTherapySections = (therapyType) => {
         label: "Cognitive Flexibility & Processing Skills",
       },
     },
-              "Occupational Therapy": {
-  daily_living_adl: {
-    checked: false,
-    notes: "",
-    label: "Activities of Daily Living (ADL)",
-  },
-  sensory_integration_modulation: {
-    checked: false,
-    notes: "",
-    label: "Sensory Integration and Modulation",
-  },
-  neuro_cognitive_rehabilitation: {
-    checked: false,
-    notes: "",
-    label: "Neuro-Cognitive Rehabilitation",
-  },
-  fine_motor_hand_function: {
-    checked: false,
-    notes: "",
-    label: "Fine Motor and Hand Function",
-  },
-  gross_motor_coordination_balance: {
-    checked: false,
-    notes: "",
-    label: "Gross Motor Coordination and Balance",
-  },
-  psychosocial_behavioral_regulation: {
-    checked: false,
-    notes: "",
-    label: "Psychosocial and Behavioral Regulation",
-  },
-  handwriting_pre_academics: {
-    checked: false,
-    notes: "",
-    label: "Handwriting and Pre-Academics",
-  },
-},
-    "Physiotherapy": {
+    "Occupational Therapy": {
+      daily_living_adl: {
+        checked: false,
+        notes: "",
+        label: "Activities of Daily Living (ADL)",
+      },
+      sensory_integration_modulation: {
+        checked: false,
+        notes: "",
+        label: "Sensory Integration and Modulation",
+      },
+      neuro_cognitive_rehabilitation: {
+        checked: false,
+        notes: "",
+        label: "Neuro-Cognitive Rehabilitation",
+      },
+      fine_motor_hand_function: {
+        checked: false,
+        notes: "",
+        label: "Fine Motor and Hand Function",
+      },
+      gross_motor_coordination_balance: {
+        checked: false,
+        notes: "",
+        label: "Gross Motor Coordination and Balance",
+      },
+      psychosocial_behavioral_regulation: {
+        checked: false,
+        notes: "",
+        label: "Psychosocial and Behavioral Regulation",
+      },
+      handwriting_pre_academics: {
+        checked: false,
+        notes: "",
+        label: "Handwriting and Pre-Academics",
+      },
+    },
+    Physiotherapy: {
       gross_motor: { checked: false, notes: "", label: "Gross Motor Skills" },
       balance_postural: {
         checked: false,
@@ -184,44 +184,44 @@ const TherapistDashboard = () => {
           label: "Coping Strategies",
         },
       },
-                        "Occupational Therapy": {
-              daily_living_activities: {
-                checked: false,
-                notes: "",
-                label: "Activities of Daily Living (ADL)",
-              },
-              sensory_integration_modulation: {
-                checked: false,
-                notes: "",
-                label: "Sensory Integration & Modulation",
-              },
-              neuro_cognitive_rehab: {
-                checked: false,
-                notes: "",
-                label: "Neuro-cognitive Rehabilitation",
-              },
-              fine_motor_and_hand: {
-                checked: false,
-                notes: "",
-                label: "Fine Motor & Hand Function",
-              },
-              gross_motor_coordination: {
-                checked: false,
-                notes: "",
-                label: "Gross Motor Coordination & Balance",
-              },
-              psychosocial_behavioral_regulation: {
-                checked: false,
-                notes: "",
-                label: "Psychosocial & Behavioral Regulation",
-              },
-              handwriting_pre_academic: {
-                checked: false,
-                notes: "",
-                label: "Handwriting & Pre-Academic Skills",
-              },
-            },
-      "Physiotherapy": {
+      "Occupational Therapy": {
+        daily_living_activities: {
+          checked: false,
+          notes: "",
+          label: "Activities of Daily Living (ADL)",
+        },
+        sensory_integration_modulation: {
+          checked: false,
+          notes: "",
+          label: "Sensory Integration & Modulation",
+        },
+        neuro_cognitive_rehab: {
+          checked: false,
+          notes: "",
+          label: "Neuro-cognitive Rehabilitation",
+        },
+        fine_motor_and_hand: {
+          checked: false,
+          notes: "",
+          label: "Fine Motor & Hand Function",
+        },
+        gross_motor_coordination: {
+          checked: false,
+          notes: "",
+          label: "Gross Motor Coordination & Balance",
+        },
+        psychosocial_behavioral_regulation: {
+          checked: false,
+          notes: "",
+          label: "Psychosocial & Behavioral Regulation",
+        },
+        handwriting_pre_academic: {
+          checked: false,
+          notes: "",
+          label: "Handwriting & Pre-Academic Skills",
+        },
+      },
+      Physiotherapy: {
         strength_endurance: {
           checked: false,
           notes: "",
@@ -345,24 +345,18 @@ const TherapistDashboard = () => {
       if (!userName) return;
       setStudentsLoading(true);
       try {
-        const params = {
-          page: 1,
-          page_size: 100,
-        };
-        if (studentSearch && studentSearch.trim())
-          params.search = studentSearch.trim();
-        if (selectedClass && selectedClass !== "all")
-          params.class_name = selectedClass;
+        // Use server-side teacher-scoped endpoint to retrieve only students
+        // matching this teacher's class+division assignments.
+        const { data } = await axios.get(
+          `${API_BASE_URL}/api/v1/teachers/me/students`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+          },
+        );
 
-        const { data } = await axios.get(`${API_BASE_URL}/api/v1/students/`, {
-          params,
-        });
-        const items = Array.isArray(data?.items)
-          ? data.items
-          : Array.isArray(data)
-            ? data
-            : [];
-
+        const items = Array.isArray(data) ? data : [];
         const normalized = items.map((s) => ({
           ...s,
           photo_url: s.photo_url || s.photoUrl || null,
@@ -372,9 +366,18 @@ const TherapistDashboard = () => {
           (a.name || "").localeCompare(b.name || ""),
         );
 
-        const filteredByTherapist = sortedStudents; 
-
-        setStudents(filteredByTherapist);
+        // Apply client-side search/class filter on already scoped students
+        let visible = sortedStudents;
+        if (studentSearch && studentSearch.trim()) {
+          const q = studentSearch.trim().toLowerCase();
+          visible = visible.filter((s) =>
+            (s.name || "").toLowerCase().includes(q),
+          );
+        }
+        if (selectedClass && selectedClass !== "all") {
+          visible = visible.filter((s) => s.class_name === selectedClass);
+        }
+        setStudents(visible);
       } catch (err) {
         console.error("Error fetching students:", err);
       } finally {
@@ -742,6 +745,10 @@ const TherapistDashboard = () => {
                             {student.class_name || student.className || "-"}
                           </p>
                           <p className="text-sm text-[#6F6C8F]">
+                            <span className="font-medium">Division:</span>{" "}
+                            {student.division || student.division || "-"}
+                          </p>
+                          <p className="text-sm text-[#6F6C8F]">
                             <span className="font-medium">Roll No:</span>{" "}
                             {student.roll_no || student.rollNo || "-"}
                           </p>
@@ -757,7 +764,7 @@ const TherapistDashboard = () => {
                           setReportDate(new Date().toISOString().slice(0, 10));
                           setTherapyType("Speech Therapy");
                           setProgressLevel("Excellent");
-                          
+
                           // RESET CLINICAL FIELDS
                           setPresentComplaints("");
                           setCurrentObservation("");
@@ -947,7 +954,7 @@ const TherapistDashboard = () => {
                   setTherapyType(defaultType);
                   setGoalsAchieved(getTherapySections(defaultType));
                   setProgressLevel("Excellent");
-                  
+
                   // RESET CLINICAL FIELDS AFTER SUCCESS
                   setPresentComplaints("");
                   setCurrentObservation("");
@@ -1006,7 +1013,9 @@ const TherapistDashboard = () => {
 
               {/* ----- NEW CLINICAL FIELDS ADDED HERE ----- */}
               <div className="mb-4">
-                <label className="block text-[#170F49] font-medium mb-1">Present Complaints</label>
+                <label className="block text-[#170F49] font-medium mb-1">
+                  Present Complaints
+                </label>
                 <textarea
                   className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#E38B52] resize-none"
                   rows="2"
@@ -1016,7 +1025,9 @@ const TherapistDashboard = () => {
               </div>
 
               <div className="mb-4">
-                <label className="block text-[#170F49] font-medium mb-1">Current Observation</label>
+                <label className="block text-[#170F49] font-medium mb-1">
+                  Current Observation
+                </label>
                 <textarea
                   className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#E38B52] resize-none"
                   rows="2"
@@ -1026,7 +1037,9 @@ const TherapistDashboard = () => {
               </div>
 
               <div className="mb-4">
-                <label className="block text-[#170F49] font-medium mb-1">Assessment Done</label>
+                <label className="block text-[#170F49] font-medium mb-1">
+                  Assessment Done
+                </label>
                 <textarea
                   className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#E38B52] resize-none"
                   rows="2"
@@ -1036,7 +1049,9 @@ const TherapistDashboard = () => {
               </div>
 
               <div className="mb-4">
-                <label className="block text-[#170F49] font-medium mb-1">Provisional Diagnosis</label>
+                <label className="block text-[#170F49] font-medium mb-1">
+                  Provisional Diagnosis
+                </label>
                 <textarea
                   className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-[#E38B52] resize-none"
                   rows="2"

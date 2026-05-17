@@ -706,6 +706,10 @@ const HeadMaster = () => {
                               {student.class_name || "-"}
                             </p>
                             <p className="text-sm text-[#6F6C8F]">
+                              <span className="font-medium">Division:</span>{" "}
+                              {student.division || "-"}
+                            </p>
+                            <p className="text-sm text-[#6F6C8F]">
                               <span className="font-medium">Roll No:</span>{" "}
                               {student.roll_no || "-"}
                             </p>

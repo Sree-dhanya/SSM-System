@@ -1968,7 +1968,7 @@ const addCellToColumn = (columnKey) => {
         academic_year: editData.academicYear,
         admission_number: editData.admissionNumber,
         admission_date: editData.admissionDate,
-        class_teacher: editData.classTeacher,
+        // class_teacher removed; derive teacher via class_name + division
         bank_name: editData.bankName,
         account_number: editData.accountNumber,
         branch: editData.branch,
@@ -2585,7 +2585,7 @@ const addCellToColumn = (columnKey) => {
         academicYear: data.academic_year,
         admissionNumber: data.admission_number,
         admissionDate: data.admission_date,
-        classTeacher: data.class_teacher,
+        // class_teacher removed from API
 
         // == Personal & Contact ==
         religion: data.religion,
@@ -3801,7 +3801,6 @@ const isPhaseUnlocked = (table, targetPhase) => {
     drawField("ACADEMIC YEAR", student.academicYear);
     drawField("ADMISSION NUMBER", student.admissionNumber);
     drawField("DATE OF ADMISSION", student.admissionDate);
-    drawField("CLASS TEACHER", student.classTeacher);
 
     drawSectionHeader("Bank Details");
     drawField("BANK NAME", student.bankName);
@@ -6433,39 +6432,10 @@ const isPhaseUnlocked = (table, targetPhase) => {
                     { label: "Academic Year", key: "academicYear" },
                     { label: "Admission Number", key: "admissionNumber" },
                     { label: "Date of Admission", key: "admissionDate", type: "date" },
-                    { label: "Class Teacher", key: "classTeacher" },
                   ].map((field) => (
                     <div key={field.key}>
                       <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
                       {editMode ? (
-
-  field.key === "classTeacher" ? (
-
-    <select
-      name="classTeacher"
-      value={editData?.classTeacher || ""}
-      onChange={(e) =>
-        setEditData({
-          ...editData,
-          classTeacher: e.target.value,
-        })
-      }
-      className="input-edit"
-    >
-
-      <option value="">
-        -- Select Teacher --
-      </option>
-
-      {teacherUsers.map((u) => (
-        <option key={u} value={u}>
-          {u}
-        </option>
-      ))}
-
-    </select>
-
-  ) : (
 
     <input
       type={field.type || "text"}
@@ -6474,8 +6444,6 @@ const isPhaseUnlocked = (table, targetPhase) => {
       onChange={handleEditChange}
       className="input-edit"
     />
-
-  )
 
 ) : (
 

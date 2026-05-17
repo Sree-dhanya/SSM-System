@@ -4,6 +4,12 @@ from sqlalchemy.orm import Session
 from app.crud.teacher import teacher
 from app.schemas.teacher import Teacher, TeacherCreate, TeacherUpdate
 from app.db.session import get_db
+from app.api import deps
+from app.crud.student import student as student_crud
+from sqlalchemy import and_, or_
+from typing import Optional
+from app.schemas.student import Student as StudentSchema
+from app.models.student import Student as StudentModel
 
 router = APIRouter()
 
@@ -48,3 +54,38 @@ def delete_teacher(teacher_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Teacher not found")
     teacher.remove(db=db, id=teacher_id)
     return {"message": "Teacher deleted successfully"} 
+
+
+@router.get("/me/students", response_model=List[StudentSchema])
+def read_my_students(
+    db: Session = Depends(get_db),
+    current_user=Depends(deps.get_current_active_user),
+) -> List[StudentSchema]:
+    # Find teacher record linked to current user by email
+    if not current_user or not getattr(current_user, "email", None):
+        raise HTTPException(status_code=403, detail="Not authenticated as teacher")
+    db_teacher = teacher.get_by_email(db, email=current_user.email)
+    if not db_teacher:
+        raise HTTPException(status_code=404, detail="Teacher profile not found")
+
+    assignments = db_teacher.class_assignments or []
+    if not assignments:
+        return []
+
+    # Build SQL filters: (class_name == a['class'] AND division == a['division']) OR ...
+    filters = []
+    for a in assignments:
+        cls = a.get("class") or a.get("class_name")
+        div = a.get("division")
+        if cls and div is not None:
+            filters.append(and_(
+                StudentModel.class_name == cls,
+                StudentModel.division == div,
+            ))
+
+    if not filters:
+        return []
+
+    students_q = db.query(StudentModel).filter(or_(*filters))
+    students = students_q.all()
+    return students

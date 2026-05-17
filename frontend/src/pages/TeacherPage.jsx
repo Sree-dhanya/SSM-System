@@ -78,6 +78,8 @@ const TeacherPage = () => {
             response.data.photo_url ||
             `https://eu.ui-avatars.com/api/?name=${(response.data.name || "").replace(" ", "+")}&size=250`,
           classes: formattedClasses,
+          // if class_assignments include division info, normalize for display and editing
+          classAssignmentsRaw: response.data.class_assignments || [],
         });
         setLoading(false);
       } catch (error) {
@@ -207,6 +209,18 @@ const TeacherPage = () => {
         caste: teacher.caste,
         gender: teacher.gender,
         date_of_birth: teacher.date_of_birth_raw || teacher.dob,
+          // preload class assignment edits if available; always provide
+          // one empty editable row so fields are editable in edit mode
+          class_assignments:
+            teacher.classAssignmentsRaw && teacher.classAssignmentsRaw.length
+              ? teacher.classAssignmentsRaw
+              : [
+                  {
+                    class: "",
+                    division: "",
+                    year: new Date().getFullYear().toString(),
+                  },
+                ],
       });
     }
     setIsEditing(!isEditing);
@@ -223,6 +237,9 @@ const TeacherPage = () => {
           : undefined,
         date_of_birth: editFormData.date_of_birth,
         rci_renewal_date: editFormData.rci_renewal_date,
+        class_assignments: editFormData.class_assignments
+          ? editFormData.class_assignments
+          : undefined,
       };
 
       const response = await axios.put(
@@ -282,6 +299,18 @@ const TeacherPage = () => {
   const handleCancelEdit = () => {
     setIsEditing(false);
     setEditFormData({});
+  };
+
+  // Helpers to manage class_assignments while editing
+  // 'Add Assignment' functionality removed per UX request
+
+  const updateAssignmentField = (index, field, value) => {
+    const arr = (editFormData.class_assignments || []).slice();
+    if (!arr[index]) return;
+    arr[index][field] = value;
+    // if class cleared, clear division
+    if (field === "class" && !value) arr[index].division = "";
+    setEditFormData({ ...editFormData, class_assignments: arr });
   };
 
   const getTeacherData = (teacherId) => {
@@ -857,6 +886,7 @@ const TeacherPage = () => {
                 Classes Assigned
               </h2>
               <div className="p-6 bg-white/50 rounded-2xl">
+                {/* Add Assignment button removed per request */}
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse rounded-xl overflow-hidden">
                     <thead className="bg-[#E38B52]/10">
@@ -865,32 +895,178 @@ const TeacherPage = () => {
                           Class
                         </th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-[#170F49]">
+                          Division
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-[#170F49]">
                           Year
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white/70">
-                      {teacher.classes.map((classItem, index) => (
-                        <tr
-                          key={index}
-                          className={
-                            index < teacher.classes.length - 1
-                              ? "border-b border-[#E38B52]/10"
-                              : ""
-                          }
-                        >
-                          <td className="px-4 py-3 text-sm text-[#170F49]">
-                            {classItem.class}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-[#170F49]">
-                            {classItem.year}
-                          </td>
-                        </tr>
-                      ))}
-                      {teacher.classes.length === 0 && (
+                      {isEditing
+                        ? (editFormData.class_assignments || []).map(
+                            (assignment, index) => (
+                              <tr
+                                key={index}
+                                className={
+                                  index <
+                                  (editFormData.class_assignments || [])
+                                    .length -
+                                    1
+                                    ? "border-b border-[#E38B52]/10"
+                                    : ""
+                                }
+                              >
+                                <td className="px-4 py-3 text-sm text-[#170F49]">
+                                  <div className="flex gap-3 items-center">
+                                    <div className="w-[60%]">
+                                      <select
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                        value={assignment.class || ""}
+                                        onChange={(e) =>
+                                          updateAssignmentField(
+                                            index,
+                                            "class",
+                                            e.target.value,
+                                          )
+                                        }
+                                      >
+                                        <option value="">Select Class</option>
+                                        <option value="PrePrimary">
+                                          PrePrimary
+                                        </option>
+                                        <option value="Primary 1">
+                                          Primary 1
+                                        </option>
+                                        <option value="Primary 2">
+                                          Primary 2
+                                        </option>
+                                        <option value="Secondary">
+                                          Secondary
+                                        </option>
+                                        <option value="Pre vocational 1">
+                                          Pre vocational 1
+                                        </option>
+                                        <option value="Pre vocational 2">
+                                          Pre vocational 2
+                                        </option>
+                                        <option value="Care group below 18 years">
+                                          Care group below 18 years
+                                        </option>
+                                        <option value="Care group Above 18 years">
+                                          Care group Above 18 years
+                                        </option>
+                                        <option value="Vocational 18-35 years">
+                                          Vocational 18-35 years
+                                        </option>
+                                      </select>
+                                    </div>
+                                    <div className="w-[40%]">
+                                      <select
+                                        className="w-full px-3 py-2 border rounded-lg"
+                                        value={assignment.division || ""}
+                                        onChange={(e) =>
+                                          updateAssignmentField(
+                                            index,
+                                            "division",
+                                            e.target.value,
+                                          )
+                                        }
+                                      >
+                                        <option value="">Select</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="D">D</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-sm text-[#170F49]">
+                                  <div className="flex items-center gap-3">
+                                    <select
+                                      className="px-3 py-2 border rounded-lg"
+                                      value={
+                                        assignment.year ||
+                                        new Date().getFullYear().toString()
+                                      }
+                                      onChange={(e) =>
+                                        updateAssignmentField(
+                                          index,
+                                          "year",
+                                          e.target.value,
+                                        )
+                                      }
+                                    >
+                                      <option
+                                        value={new Date()
+                                          .getFullYear()
+                                          .toString()}
+                                      >
+                                        {new Date().getFullYear()}
+                                      </option>
+                                      {[...Array(5)].map((_, i) => {
+                                        const year =
+                                          new Date().getFullYear() - i - 1;
+                                        return (
+                                          <option
+                                            key={year}
+                                            value={year.toString()}
+                                          >
+                                            {year}
+                                          </option>
+                                        );
+                                      })}
+                                      {[...Array(5)].map((_, i) => {
+                                        const year =
+                                          new Date().getFullYear() + i + 1;
+                                        return (
+                                          <option
+                                            key={year}
+                                            value={year.toString()}
+                                          >
+                                            {year}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                    {/* Remove button hidden per request */}
+                                  </div>
+                                </td>
+                              </tr>
+                            ),
+                          )
+                        : teacher.classes.map((classItem, index) => (
+                            <tr
+                              key={index}
+                              className={
+                                index < teacher.classes.length - 1
+                                  ? "border-b border-[#E38B52]/10"
+                                  : ""
+                              }
+                            >
+                              <td className="px-4 py-3 text-sm text-[#170F49]">
+                                {classItem.class}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[#170F49]">
+                                {teacher.classAssignmentsRaw &&
+                                teacher.classAssignmentsRaw[index] &&
+                                teacher.classAssignmentsRaw[index].division
+                                  ? teacher.classAssignmentsRaw[index].division
+                                  : "-"}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-[#170F49]">
+                                {classItem.year}
+                              </td>
+                            </tr>
+                          ))}
+                      {((isEditing &&
+                        (!editFormData.class_assignments ||
+                          editFormData.class_assignments.length === 0)) ||
+                        (!isEditing && teacher.classes.length === 0)) && (
                         <tr>
                           <td
-                            colSpan="2"
+                            colSpan={isEditing ? "3" : "3"}
                             className="px-4 py-3 text-sm text-center text-[#6F6C90]"
                           >
                             No class assignments found.
