@@ -24,7 +24,6 @@ class StudentBase(BaseModel):
     academic_year: Optional[str] = None
     admission_number: Optional[str] = None
     admission_date: Optional[date] = None
-    class_teacher: Optional[str] = None
 
     # Address
     birth_place: Optional[str] = None

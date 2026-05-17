@@ -1,8 +1,21 @@
 from datetime import date
-from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List, Dict, Any, Literal
 
 # Base Teacher Schema
+class ClassAssignment(BaseModel):
+    class_name: Optional[str] = Field(None, alias='class')
+    year: Optional[str] = None
+    division: Optional[Literal['A', 'B', 'C', 'D']] = None
+
+    # validation for requiring division if class is assigned is handled
+    # in the TeacherCreate and TeacherUpdate models to avoid raising
+    # during response serialization for existing records.
+
+    class Config:
+        allow_population_by_field_name = True
+
+
 class TeacherBase(BaseModel):
     name: str
     address: str
@@ -18,11 +31,22 @@ class TeacherBase(BaseModel):
     qualifications_details: str
     category: str
     email: Optional[str] = None
-    class_assignments: Optional[List[Dict[str, Any]]] = None
+    class_assignments: Optional[List[ClassAssignment]] = None
 
 # Create Teacher Schema (used for input when creating)
 class TeacherCreate(TeacherBase):
-    pass
+    from pydantic import root_validator
+
+    @root_validator(pre=True)
+    def validate_assignments(cls, values):
+        assignments = values.get('class_assignments') or []
+        for a in assignments:
+            # allow both alias 'class' and field name 'class_name'
+            class_present = bool(a.get('class') or a.get('class_name'))
+            division_present = bool(a.get('division'))
+            if class_present and not division_present:
+                raise ValueError('Each class assignment must include a division when a class is specified')
+        return values
 
 # Update Teacher Schema (allows partial updates)
 class TeacherUpdate(BaseModel):
@@ -40,7 +64,19 @@ class TeacherUpdate(BaseModel):
     qualifications_details: Optional[str] = None
     category: Optional[str] = None
     email: Optional[str] = None
-    class_assignments: Optional[List[Dict[str, Any]]] = None
+    class_assignments: Optional[List[ClassAssignment]] = None
+
+    from pydantic import root_validator
+
+    @root_validator(pre=True)
+    def validate_assignments(cls, values):
+        assignments = values.get('class_assignments') or []
+        for a in assignments:
+            class_present = bool(a.get('class') or a.get('class_name'))
+            division_present = bool(a.get('division'))
+            if class_present and not division_present:
+                raise ValueError('Each class assignment must include a division when a class is specified')
+        return values
 
 # Teacher Schema (used for responses)
 class Teacher(TeacherBase):

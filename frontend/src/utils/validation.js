@@ -162,9 +162,7 @@ export function validateStudent(form) {
   if (form.academic_year) {
     if (!validateAcademicYear(form.academic_year)) errors.academic_year = 'Academic year must be in format YYYY-YYYY and consecutive years.';
   }
-  if (form.class_teacher) {
-    if (!isOptionalText(form.class_teacher, 100)) errors.class_teacher = 'Class teacher name must be text, max 100 chars.';
-  }
+  // `class_teacher` field removed — assignment derived from class_name + division
   if (form.division) {
     if (!validateDivision(form.division)) errors.division = 'Division must be a single letter.';
   }

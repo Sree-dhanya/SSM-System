@@ -31,7 +31,8 @@ const AddTeacher = () => {
 
   const [classAssignment, setClassAssignment] = useState({
     class: "",
-    year: new Date().getFullYear().toString()
+    year: new Date().getFullYear().toString(),
+    division: ''
   });
 
   const handleInputChange = (e) => {
@@ -90,6 +91,12 @@ if (
         return;
       }
 
+      // Validate class/division: if a class is selected, division must be selected too
+      if (classAssignment.class && !classAssignment.division) {
+        alert('Please select Division for the assigned class.');
+        setIsSubmitting(false);
+        return;
+      }
       // Backend still enforces many non-null teacher fields; auto-fill sensible defaults when omitted.
       const cleanedAadhaar = teacherData.aadhar_number ? String(cleanAadhaar(teacherData.aadhar_number)) : '';
       const now = Date.now().toString();
@@ -502,23 +509,43 @@ if (
                   <label className="block text-sm font-medium text-[#170F49] ml-4">
                     Class <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    id="class_assignment_class"
-                    value={classAssignment.class}
-                    onChange={(e) => handleClassAssignmentChange('class', e.target.value)}
-                    className={selectClassName}
-                  >
-                    <option value="">Select Class</option>
-                    <option value="PrePrimary">PrePrimary</option>
-                    <option value="Primary 1">Primary 1</option>
-                    <option value="Primary 2">Primary 2</option>
-                    <option value="Secondary">Secondary</option>
-                    <option value="Pre vocational 1">Pre vocational 1</option>
-                    <option value="Pre vocational 2">Pre vocational 2</option>
-                    <option value="Care group below 18 years">Care group below 18 years</option>
-                    <option value="Care group Above 18 years">Care group Above 18 years</option>
-                    <option value="Vocational 18-35 years">Vocational 18-35 years</option>
-                  </select>
+                  <div className="flex gap-3 items-center">
+                    <div className="w-[70%]">
+                      <select
+                        id="class_assignment_class"
+                        value={classAssignment.class}
+                        onChange={(e) => handleClassAssignmentChange('class', e.target.value)}
+                        className={selectClassName}
+                      >
+                        <option value="">Select Class</option>
+                        <option value="PrePrimary">PrePrimary</option>
+                        <option value="Primary 1">Primary 1</option>
+                        <option value="Primary 2">Primary 2</option>
+                        <option value="Secondary">Secondary</option>
+                        <option value="Pre vocational 1">Pre vocational 1</option>
+                        <option value="Pre vocational 2">Pre vocational 2</option>
+                        <option value="Care group below 18 years">Care group below 18 years</option>
+                        <option value="Care group Above 18 years">Care group Above 18 years</option>
+                        <option value="Vocational 18-35 years">Vocational 18-35 years</option>
+                      </select>
+                    </div>
+                    <div className="w-[30%]">
+                      <label className="block text-sm font-medium text-[#170F49] mb-2">Division</label>
+                      <select
+                        id="class_assignment_division"
+                        value={classAssignment.division}
+                        onChange={(e) => handleClassAssignmentChange('division', e.target.value)}
+                        className="w-[100%] px-3 py-3 rounded-xl border bg-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all duration-300 text-[#6F6C90]"
+                        disabled={!classAssignment.class}
+                      >
+                        <option value="">Select</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                        <option value="D">D</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

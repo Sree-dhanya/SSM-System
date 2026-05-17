@@ -50,7 +50,7 @@ class Student(Base):
     academic_year = Column(String)
     admission_number = Column(String)
     admission_date = Column(Date)
-    class_teacher = Column(String)
+    # `class_teacher` removed — teacher assignment is derived from teacher class_assignments (class+division)
     
     # Bank Details
     bank_name = Column(String)

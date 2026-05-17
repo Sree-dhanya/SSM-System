@@ -11,4 +11,6 @@ class CRUDTeacher(CRUDBase[Teacher, TeacherCreate, TeacherUpdate]):
     def get_by_rci(self, db: Session, *, rci_number: str) -> Optional[Teacher]:
         return db.query(Teacher).filter(Teacher.rci_number == rci_number).first()
     
+    def get_by_email(self, db: Session, *, email: str) -> Optional[Teacher]:
+        return db.query(Teacher).filter(Teacher.email == email).first()
 teacher = CRUDTeacher(Teacher) 
