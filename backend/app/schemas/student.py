@@ -20,6 +20,7 @@ class StudentBase(BaseModel):
     # Class & Roll Info
     class_name: Optional[str] = None
     roll_no: Optional[str] = None
+    division: Optional[str] = None
     academic_year: Optional[str] = None
     admission_number: Optional[str] = None
     admission_date: Optional[date] = None

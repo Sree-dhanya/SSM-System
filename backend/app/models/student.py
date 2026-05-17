@@ -16,6 +16,7 @@ class Student(Base):
     caste = Column(String)
     class_name = Column(String)
     roll_no = Column(String)
+    division = Column(String, nullable=True)
     birth_place = Column(String)
     house_name = Column(String)
     street_name = Column(String)

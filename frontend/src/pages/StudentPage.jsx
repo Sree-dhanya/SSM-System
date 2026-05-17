@@ -1942,6 +1942,7 @@ const addCellToColumn = (columnKey) => {
         caste: editData.caste,
         class_name: editData.class,
         roll_no: editData.rollNo,
+        division: editData.division,
         birth_place: editData.birthPlace,
         house_name: editData.houseName,
         street_name: editData.streetName,
@@ -1972,6 +1973,9 @@ const addCellToColumn = (columnKey) => {
         account_number: editData.accountNumber,
         branch: editData.branch,
         ifsc_code: editData.ifscCode,
+        disability_type: editData.disabilityType,
+        disability_percentage: editData.disabilityPercentage,
+        identification_marks: editData.identificationMarks,
         aadhar_number: editData.aadharNumber
           ? String(editData.aadharNumber).replace(/\s+/g, "")
           : null,
@@ -2577,6 +2581,7 @@ const addCellToColumn = (columnKey) => {
         gender: data.gender,
         class: data.class_name,
         rollNo: data.roll_no,
+        division: data.division,
         academicYear: data.academic_year,
         admissionNumber: data.admission_number,
         admissionDate: data.admission_date,
@@ -3790,6 +3795,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
     drawSectionHeader("Identification Marks");
     drawField("MARKS", student.identificationMarks); // --- ^^^ END OF NEW SECTIONS ^^^ ---
     drawSectionHeader("Academic Information");
+    drawField("DIVISION", student.division);
     drawField("CLASS", student.class);
     drawField("ROLL NUMBER", student.rollNo);
     drawField("ACADEMIC YEAR", student.academicYear);
@@ -6422,7 +6428,7 @@ const isPhaseUnlocked = (table, targetPhase) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {[
                     { label: "Class", key: "class" },
-                    { label: "Division", key: "rollNo" },
+                    { label: "Division", key: "division" },
                     { label: "Roll Number", key: "rollNo" },
                     { label: "Academic Year", key: "academicYear" },
                     { label: "Admission Number", key: "admissionNumber" },
