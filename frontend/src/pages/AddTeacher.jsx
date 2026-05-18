@@ -69,20 +69,17 @@ const AddTeacher = () => {
       setErrors({});
       setIsSubmitting(true);
       // Name and email are mandatory.
-if (!teacherData.name || !teacherData.name.trim()) {
-  alert('Name is required.');
-  setIsSubmitting(false);
-  return;
-}
+      if (!teacherData.name || !teacherData.name.trim()) {
+        alert('Name is required.');
+        setIsSubmitting(false);
+        return;
+      }
 
-if (
-  !teacherData.email ||
-  !teacherData.email.includes('@')
-) {
-  alert('A valid email is required.');
-  setIsSubmitting(false);
-  return;
-}
+      if (!teacherData.email || !teacherData.email.includes('@')) {
+        alert('A valid email is required.');
+        setIsSubmitting(false);
+        return;
+      }
 
       // If Aadhaar has been entered, block submit while inline validation is failing.
       if (aadharError) {
@@ -97,28 +94,30 @@ if (
         setIsSubmitting(false);
         return;
       }
-      // Backend still enforces many non-null teacher fields; auto-fill sensible defaults when omitted.
-      const cleanedAadhaar = teacherData.aadhar_number ? String(cleanAadhaar(teacherData.aadhar_number)) : '';
-      const now = Date.now().toString();
-      const todayIso = new Date().toISOString().split('T')[0];
-      const generatedMobile = `9${now.slice(-9).padStart(9, '0')}`;
-      const generatedAadhaar = `2${now.slice(-11).padStart(11, '0')}`;
-      const generatedRci = `RCI-${now.slice(-8)}`;
 
+      // Aadhaar must be provided
+      const cleanedAadhaar = teacherData.aadhar_number ? String(cleanAadhaar(teacherData.aadhar_number)) : '';
+      if (!cleanedAadhaar) {
+        alert('Aadhaar is required.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Do NOT auto-fill or generate placeholder data. Only send values the user provided.
       const teacherDataWithAssignments = {
         name: teacherData.name.trim(),
-        address: teacherData.address?.trim() || 'Not provided',
-        date_of_birth: teacherData.date_of_birth || '2000-01-01',
-        gender: teacherData.gender || 'Other',
-        blood_group: teacherData.blood_group || 'O+',
-        mobile_number: teacherData.mobile_number?.trim() || generatedMobile,
-        aadhar_number: cleanedAadhaar || generatedAadhaar,
-        religion: teacherData.religion || 'Other',
-        caste: teacherData.caste || 'Other',
-        rci_number: teacherData.rci_number?.trim() || generatedRci,
-        rci_renewal_date: teacherData.rci_renewal_date || todayIso,
-        qualifications_details: teacherData.qualifications_details?.trim() || 'Not provided',
-        category: teacherData.category || 'Other',
+        address: teacherData.address?.trim() || null,
+        date_of_birth: teacherData.date_of_birth || null,
+        gender: teacherData.gender || null,
+        blood_group: teacherData.blood_group || null,
+        mobile_number: teacherData.mobile_number?.trim() || null,
+        aadhar_number: cleanedAadhaar,
+        religion: teacherData.religion || null,
+        caste: teacherData.caste || null,
+        rci_number: teacherData.rci_number?.trim() || null,
+        rci_renewal_date: teacherData.rci_renewal_date || null,
+        qualifications_details: teacherData.qualifications_details?.trim() || null,
+        category: teacherData.category || null,
         email: teacherData.email?.trim() || null,
         class_assignments: classAssignment.class ? [classAssignment] : []
       };

@@ -60,42 +60,50 @@ const AddTherapist = () => {
       setErrors({});
       setIsSubmitting(true);
 
-      // Name is the only mandatory field.
+      // Require Name and Aadhaar. Aadhaar must be valid per inline validation.
       if (!therapistData.name || !therapistData.name.trim()) {
         alert('Name is required.');
         setIsSubmitting(false);
         return;
       }
 
-      // If Aadhaar has been entered, block submit while inline validation is failing.
+      // Email is mandatory for therapist
+      if (!therapistData.email || !therapistData.email.includes('@')) {
+        alert('A valid email is required.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const cleanedAadhaar = therapistData.aadhar_number ? String(cleanAadhaar(therapistData.aadhar_number)) : '';
+      if (!cleanedAadhaar) {
+        alert('Aadhaar is required.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // If inline Aadhaar validation flagged an error, block submit.
       if (aadharError) {
         alert(aadharError);
         setIsSubmitting(false);
         return;
       }
 
-      // Backend still enforces many non-null therapist fields; auto-fill sensible defaults when omitted.
-      const cleanedAadhaar = therapistData.aadhar_number ? String(cleanAadhaar(therapistData.aadhar_number)) : '';
-      const now = Date.now().toString();
-      const todayIso = new Date().toISOString().split('T')[0];
-      const generatedMobile = `9${now.slice(-9).padStart(9, '0')}`;
-      const generatedAadhaar = `2${now.slice(-11).padStart(11, '0')}`;
-      const generatedRci = `RCI-${now.slice(-8)}`;
-
+      // Do NOT auto-fill or generate placeholder data. Only send values the user provided.
+      // Convert empty strings to null so the backend receives only meaningful values.
       const finalData = {
         name: therapistData.name.trim(),
-        address: therapistData.address?.trim() || 'Not provided',
-        date_of_birth: therapistData.date_of_birth || '2000-01-01',
-        gender: therapistData.gender || 'Other',
-        blood_group: therapistData.blood_group || 'O+',
-        mobile_number: therapistData.mobile_number?.trim() || generatedMobile,
-        aadhar_number: cleanedAadhaar || generatedAadhaar,
-        religion: therapistData.religion || 'Other',
-        caste: therapistData.caste || 'Other',
-        rci_number: therapistData.rci_number?.trim() || generatedRci,
-        rci_renewal_date: therapistData.rci_renewal_date || todayIso,
-        qualifications_details: therapistData.qualifications_details?.trim() || 'Not provided',
-        category: therapistData.category || 'Other',
+        address: therapistData.address?.trim() || null,
+        date_of_birth: therapistData.date_of_birth || null,
+        gender: therapistData.gender || null,
+        blood_group: therapistData.blood_group || null,
+        mobile_number: therapistData.mobile_number?.trim() || null,
+        aadhar_number: cleanedAadhaar,
+        religion: therapistData.religion || null,
+        caste: therapistData.caste?.trim() || null,
+        rci_number: therapistData.rci_number?.trim() || null,
+        rci_renewal_date: therapistData.rci_renewal_date || null,
+        qualifications_details: therapistData.qualifications_details?.trim() || null,
+        category: therapistData.category || null,
         email: therapistData.email?.trim() || null,
         specialization: therapistData.specialization || null,
       };
@@ -335,6 +343,7 @@ const AddTherapist = () => {
                 value={therapistData.email}
                 onChange={handleInputChange}
                 placeholder="Enter Email"
+                required
                 className="w-full px-4 py-4 rounded-2xl border bg-white shadow-lg focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all placeholder:text-[#6F6C90]"
                 pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
                 onInvalid={e => e.target.setCustomValidity('Please enter a valid email address (username@domain.extension) with no spaces.')}
