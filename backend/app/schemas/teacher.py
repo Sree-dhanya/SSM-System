@@ -1,5 +1,5 @@
 from datetime import date
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Dict, Any, Literal
 
 # Base Teacher Schema
@@ -13,7 +13,7 @@ class ClassAssignment(BaseModel):
     # during response serialization for existing records.
 
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True
 
 
 class TeacherBase(BaseModel):
@@ -36,18 +36,16 @@ class TeacherBase(BaseModel):
 
 # Create Teacher Schema (used for input when creating)
 class TeacherCreate(TeacherBase):
-    from pydantic import root_validator
-
-    @root_validator(pre=True)
-    def validate_assignments(cls, values):
-        assignments = values.get('class_assignments') or []
+    @model_validator(mode='before')
+    def validate_assignments(self):
+        assignments = self.get('class_assignments') or []
         for a in assignments:
             # allow both alias 'class' and field name 'class_name'
             class_present = bool(a.get('class') or a.get('class_name'))
             division_present = bool(a.get('division'))
             if class_present and not division_present:
                 raise ValueError('Each class assignment must include a division when a class is specified')
-        return values
+        return self
 
 # Update Teacher Schema (allows partial updates)
 class TeacherUpdate(BaseModel):
@@ -67,17 +65,15 @@ class TeacherUpdate(BaseModel):
     email: Optional[str] = None
     class_assignments: Optional[List[ClassAssignment]] = None
 
-    from pydantic import root_validator
-
-    @root_validator(pre=True)
-    def validate_assignments(cls, values):
-        assignments = values.get('class_assignments') or []
+    @model_validator(mode='before')
+    def validate_assignments(self):
+        assignments = self.get('class_assignments') or []
         for a in assignments:
             class_present = bool(a.get('class') or a.get('class_name'))
             division_present = bool(a.get('division'))
             if class_present and not division_present:
                 raise ValueError('Each class assignment must include a division when a class is specified')
-        return values
+        return self
 
 # Teacher Schema (used for responses)
 class Teacher(TeacherBase):
