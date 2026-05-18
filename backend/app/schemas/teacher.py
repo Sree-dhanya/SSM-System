@@ -69,12 +69,13 @@ class TeacherUpdate(BaseModel):
     @model_validator(mode='before')
     @classmethod
     def validate_assignments(cls, data):
-        assignments = data.get('class_assignments') or []
-        for a in assignments:
-            class_present = bool(a.get('class') or a.get('class_name'))
-            division_present = bool(a.get('division'))
-            if class_present and not division_present:
-                raise ValueError('Each class assignment must include a division when a class is specified')
+        if 'class_assignments' in data:
+            assignments = data.get('class_assignments') or []
+            for a in assignments:
+                class_present = bool(a.get('class') or a.get('class_name'))
+                division_present = bool(a.get('division'))
+                if class_present and not division_present:
+                    raise ValueError('Each class assignment must include a division when a class is specified')
         return data
 
 # Teacher Schema (used for responses)
