@@ -157,7 +157,7 @@ class StudentBase(BaseModel):
     sentences: bool = False
     physical_deformity: bool = False
     
-    photo: Optional[str] = None
+    photo: Optional[bytes] = None
 
     class Config:
         # Allow arbitrary types including bytes without validation
@@ -191,8 +191,10 @@ class Student(StudentBase):
                 return None
         return None
 
-    class Config:
-        from_attributes = True
-        arbitrary_types_allowed = True
-        # Exclude photo bytes from JSON response
-        exclude = {'photo'}
+    model_config = {
+    "from_attributes": True,
+    "arbitrary_types_allowed": True,
+    "json_encoders": {
+        bytes: lambda v: None
+    }
+}
