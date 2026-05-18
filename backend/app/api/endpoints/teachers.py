@@ -88,4 +88,14 @@ def read_my_students(
 
     students_q = db.query(StudentModel).filter(or_(*filters))
     students = students_q.all()
-    return students
+
+    safe_students = []
+
+    for s in students:
+        try:
+            safe_students.append(StudentSchema.model_validate(s))
+        except Exception as e:
+            print(f"FAILED STUDENT ID: {s.id}")
+            print(f"ERROR: {e}")
+
+        return safe_students
