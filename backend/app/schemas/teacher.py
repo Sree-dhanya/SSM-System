@@ -37,15 +37,16 @@ class TeacherBase(BaseModel):
 # Create Teacher Schema (used for input when creating)
 class TeacherCreate(TeacherBase):
     @model_validator(mode='before')
-    def validate_assignments(self):
-        assignments = self.get('class_assignments') or []
+    @classmethod
+    def validate_assignments(cls, data):
+        assignments = data.get('class_assignments') or []
         for a in assignments:
             # allow both alias 'class' and field name 'class_name'
             class_present = bool(a.get('class') or a.get('class_name'))
             division_present = bool(a.get('division'))
             if class_present and not division_present:
                 raise ValueError('Each class assignment must include a division when a class is specified')
-        return self
+        return data
 
 # Update Teacher Schema (allows partial updates)
 class TeacherUpdate(BaseModel):
@@ -66,14 +67,15 @@ class TeacherUpdate(BaseModel):
     class_assignments: Optional[List[ClassAssignment]] = None
 
     @model_validator(mode='before')
-    def validate_assignments(self):
-        assignments = self.get('class_assignments') or []
+    @classmethod
+    def validate_assignments(cls, data):
+        assignments = data.get('class_assignments') or []
         for a in assignments:
             class_present = bool(a.get('class') or a.get('class_name'))
             division_present = bool(a.get('division'))
             if class_present and not division_present:
                 raise ValueError('Each class assignment must include a division when a class is specified')
-        return self
+        return data
 
 # Teacher Schema (used for responses)
 class Teacher(TeacherBase):
