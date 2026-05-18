@@ -71,23 +71,126 @@ const HeadMaster = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState(null);
   const [teacherSearch, setTeacherSearch] = useState("");
+  const [teacherPage, setTeacherPage] = useState(1);
   const [studentSearch, setStudentSearch] = useState("");
   const [therapistSearch, setTherapistSearch] = useState("");
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentPage, setStudentPage] = useState(1);
-  const [studentLimit, setStudentLimit] = useState(50);
+  const studentLimit = 50;
   const [studentTotalPages, setStudentTotalPages] = useState(1);
   const [studentTotal, setStudentTotal] = useState(0);
   const [therapists, setTherapists] = useState([]);
   const [therapistsLoading, setTherapistsLoading] = useState(false);
+  const [therapistPage, setTherapistPage] = useState(1);
+  const therapistLimit = 50;
+  const studentSearchContainerRef = useRef(null);
+
+  const teacherLimit = 50;
+
+  const renderStudentPaginationControls = (className = "") =>
+    renderPaginationControls({
+      page: studentPage,
+      totalPages: studentTotalPages,
+      totalItems: studentTotal,
+      setPage: setStudentPage,
+      itemLabel: "students",
+      className,
+      hidden: studentsLoading || students.length === 0,
+    });
+
+  const renderPaginationControls = ({
+    page,
+    totalPages,
+    totalItems,
+    setPage,
+    itemLabel,
+    className = "",
+    hidden = false,
+  }) => {
+    if (hidden) return null;
+
+    return (
+      <div className={`flex items-center justify-center gap-4 px-4 py-6 border-t border-gray-200 ${className}`}>
+        <button
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page <= 1}
+          className={`px-4 py-2 rounded-lg border border-[#E38B52] transition-all font-medium ${
+            page <= 1
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-white text-[#E38B52] hover:bg-[#E38B52] hover:text-white'
+          }`}
+        >
+          ◀ Previous
+        </button>
+
+        <div className="text-sm text-[#6F6C8F] font-medium whitespace-nowrap">
+          Page <span className="font-bold">{page}</span> of <span className="font-bold">{totalPages}</span> — <span className="font-bold">{totalItems}</span> {itemLabel}
+        </div>
+
+        <button
+          onClick={() => setPage((p) => Math.min(totalPages || p + 1, p + 1))}
+          disabled={page >= totalPages}
+          className={`px-4 py-2 rounded-lg border border-[#E38B52] transition-all font-medium ${
+            page >= totalPages
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-white text-[#E38B52] hover:bg-[#E38B52] hover:text-white'
+          }`}
+        >
+          Next ▶
+        </button>
+      </div>
+    );
+  };
+
+  const teacherSearchNormalized = teacherSearch.toLowerCase();
+  const filteredTeachers = teachers.filter((teacher) => {
+    const teacherName = teacher.name ? teacher.name.toLowerCase() : "";
+    const teacherQualifications = teacher.qualifications_details
+      ? teacher.qualifications_details.toLowerCase()
+      : "";
+    const teacherMobile = teacher.mobile_number ? String(teacher.mobile_number) : "";
+
+    return (
+      teacherName.includes(teacherSearchNormalized) ||
+      teacherQualifications.includes(teacherSearchNormalized) ||
+      teacherMobile.includes(teacherSearch)
+    );
+  });
+  const teacherTotalPages = Math.max(1, Math.ceil(filteredTeachers.length / teacherLimit));
+  const teacherPagedItems = filteredTeachers.slice(
+    (teacherPage - 1) * teacherLimit,
+    teacherPage * teacherLimit,
+  );
+
+  const therapistSearchNormalized = therapistSearch.toLowerCase();
+  const filteredTherapists = therapists.filter((therapist) => {
+    const therapistName = therapist.name ? therapist.name.toLowerCase() : "";
+    const therapistQualifications = therapist.qualifications_details
+      ? therapist.qualifications_details.toLowerCase()
+      : "";
+    const therapistSpecialization = therapist.specialization
+      ? therapist.specialization.toLowerCase()
+      : "";
+    const therapistMobile = therapist.mobile_number ? String(therapist.mobile_number) : "";
+
+    return (
+      therapistName.includes(therapistSearchNormalized) ||
+      therapistQualifications.includes(therapistSearchNormalized) ||
+      therapistSpecialization.includes(therapistSearchNormalized) ||
+      therapistMobile.includes(therapistSearch)
+    );
+  });
+  const therapistTotalPages = Math.max(1, Math.ceil(filteredTherapists.length / therapistLimit));
+  const therapistPagedItems = filteredTherapists.slice(
+    (therapistPage - 1) * therapistLimit,
+    therapistPage * therapistLimit,
+  );
 
   // Add scroll event listener
   useEffect(() => {
     const handleScroll = () => {
-      const searchBarPosition = document
-        .getElementById("search-container")
-        ?.getBoundingClientRect().top;
+      const searchBarPosition = studentSearchContainerRef.current?.getBoundingClientRect().top;
       if (searchBarPosition < 0) {
         setIsSearchFloating(true);
       } else {
@@ -197,6 +300,14 @@ const HeadMaster = () => {
   useEffect(() => {
     setStudentPage(1);
   }, [studentSearch, selectedClass]);
+
+  useEffect(() => {
+    setTeacherPage(1);
+  }, [teacherSearch]);
+
+  useEffect(() => {
+    setTherapistPage(1);
+  }, [therapistSearch]);
 
   // Add this function to handle logout
   const handleLogout = () => {
@@ -433,6 +544,16 @@ const HeadMaster = () => {
                 type="text"
                 placeholder={`Search ${activeTab === "students" ? "students" : activeTab === "teachers" ? "teachers" : "therapists"}...`}
                 className="w-full pl-10 pr-4 py-3 rounded-xl border bg-[#FAF9F6] shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#E38B52] transition-all duration-300 placeholder:text-gray-400 hover:placeholder:text-gray-600"
+                value={activeTab === "students" ? studentSearch : activeTab === "teachers" ? teacherSearch : therapistSearch}
+                onChange={(e) => {
+                  if (activeTab === "students") {
+                    setStudentSearch(e.target.value);
+                  } else if (activeTab === "teachers") {
+                    setTeacherSearch(e.target.value);
+                  } else {
+                    setTherapistSearch(e.target.value);
+                  }
+                }}
               />
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400"
@@ -538,7 +659,7 @@ const HeadMaster = () => {
               {/* Filter and Search Section */}
               <div className="flex justify-between items-center mb-8 px-4">
                 {/* Search Bar */}
-                <div id="search-container" className="relative">
+                <div ref={studentSearchContainerRef} id="search-container" className="relative">
                   <input
                     type="text"
                     placeholder="Search students..."
@@ -658,6 +779,8 @@ const HeadMaster = () => {
                 </div>
               </div>
 
+              {renderStudentPaginationControls("mb-8")}
+
               {/* Student List */}
               <div className="grid grid-cols-1 gap-4 px-4">
                 {studentsLoading && (
@@ -767,38 +890,15 @@ const HeadMaster = () => {
                     </div>
                   ))}
               </div>
-              {/* Pagination Controls - positioned below the student list */}
-              {!studentsLoading && students.length > 0 && (
-                <div className="flex items-center justify-center gap-4 mt-8 px-4 py-6 border-t border-gray-200">
-                  <button
-                    onClick={() => setStudentPage((p) => Math.max(1, p - 1))}
-                    disabled={studentPage <= 1}
-                    className={`px-4 py-2 rounded-lg border border-[#E38B52] transition-all font-medium ${
-                      studentPage <= 1
-                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                        : 'bg-white text-[#E38B52] hover:bg-[#E38B52] hover:text-white'
-                    }`}
-                  >
-                    ◀ Previous
-                  </button>
-
-                  <div className="text-sm text-[#6F6C8F] font-medium whitespace-nowrap">
-                    Page <span className="font-bold">{studentPage}</span> of <span className="font-bold">{studentTotalPages}</span> — <span className="font-bold">{studentTotal}</span> students
-                  </div>
-
-                  <button
-                    onClick={() => setStudentPage((p) => Math.min(studentTotalPages || p + 1, p + 1))}
-                    disabled={studentPage >= studentTotalPages}
-                    className={`px-4 py-2 rounded-lg border border-[#E38B52] transition-all font-medium ${
-                      studentPage >= studentTotalPages
-                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                        : 'bg-white text-[#E38B52] hover:bg-[#E38B52] hover:text-white'
-                    }`}
-                  >
-                    Next ▶
-                  </button>
-                </div>
-              )}
+              {renderPaginationControls({
+                page: studentPage,
+                totalPages: studentTotalPages,
+                totalItems: studentTotal,
+                setPage: setStudentPage,
+                itemLabel: "students",
+                className: "mb-8",
+                hidden: studentsLoading || students.length === 0,
+              })}
             </>
           ) : activeTab === "teachers" ? (
             <>
@@ -848,39 +948,24 @@ const HeadMaster = () => {
                   Add Teacher
                 </button>
               </div>
+              {renderPaginationControls({
+                page: teacherPage,
+                totalPages: teacherTotalPages,
+                totalItems: filteredTeachers.length,
+                setPage: setTeacherPage,
+                itemLabel: "teachers",
+                className: "mb-8",
+                hidden: teachers.length === 0,
+              })}
 
               {/* Teachers List */}
               <div className="grid grid-cols-1 gap-4 px-4">
-                {teachers.filter(
-                  (teacher) =>
-                    teacher.name
-                      .toLowerCase()
-                      .includes(teacherSearch.toLowerCase()) ||
-                    (teacher.qualifications_details &&
-                      teacher.qualifications_details
-                        .toLowerCase()
-                        .includes(teacherSearch.toLowerCase())) ||
-                    (teacher.mobile_number &&
-                      teacher.mobile_number.includes(teacherSearch)),
-                ).length === 0 ? (
+                {filteredTeachers.length === 0 ? (
                   <div className="text-center text-[#6F6C8F]">
                     No teachers found.
                   </div>
                 ) : (
-                  teachers
-                    .filter(
-                      (teacher) =>
-                        teacher.name
-                          .toLowerCase()
-                          .includes(teacherSearch.toLowerCase()) ||
-                        (teacher.qualifications_details &&
-                          teacher.qualifications_details
-                            .toLowerCase()
-                            .includes(teacherSearch.toLowerCase())) ||
-                        (teacher.mobile_number &&
-                          teacher.mobile_number.includes(teacherSearch)),
-                    )
-                    .map((teacher) => (
+                  teacherPagedItems.map((teacher) => (
                       <div
                         key={teacher.id}
                         onClick={() => handleTeacherClick(teacher.id)}
@@ -961,6 +1046,15 @@ const HeadMaster = () => {
                     ))
                 )}
               </div>
+              {renderPaginationControls({
+                page: teacherPage,
+                totalPages: teacherTotalPages,
+                totalItems: filteredTeachers.length,
+                setPage: setTeacherPage,
+                itemLabel: "teachers",
+                className: "mt-8",
+                hidden: teachers.length === 0,
+              })}
             </>
           ) : activeTab === "therapists" ? (
             <>
@@ -1010,6 +1104,15 @@ const HeadMaster = () => {
                   Add Therapist
                 </button>
               </div>
+              {renderPaginationControls({
+                page: therapistPage,
+                totalPages: therapistTotalPages,
+                totalItems: filteredTherapists.length,
+                setPage: setTherapistPage,
+                itemLabel: "therapists",
+                className: "mb-8",
+                hidden: therapists.length === 0,
+              })}
 
               {/* Therapists List */}
               <div className="grid grid-cols-1 gap-4 px-4">
@@ -1019,44 +1122,12 @@ const HeadMaster = () => {
                   </div>
                 )}
                 {!therapistsLoading &&
-                therapists.filter(
-                  (therapist) =>
-                    therapist.name
-                      .toLowerCase()
-                      .includes(therapistSearch.toLowerCase()) ||
-                    (therapist.qualifications_details &&
-                      therapist.qualifications_details
-                        .toLowerCase()
-                        .includes(therapistSearch.toLowerCase())) ||
-                    (therapist.specialization &&
-                      therapist.specialization
-                        .toLowerCase()
-                        .includes(therapistSearch.toLowerCase())) ||
-                    (therapist.mobile_number &&
-                      therapist.mobile_number.includes(therapistSearch)),
-                ).length === 0 ? (
+                filteredTherapists.length === 0 ? (
                   <div className="text-center text-[#6F6C8F]">
                     No therapists found.
                   </div>
                 ) : (
-                  therapists
-                    .filter(
-                      (therapist) =>
-                        therapist.name
-                          .toLowerCase()
-                          .includes(therapistSearch.toLowerCase()) ||
-                        (therapist.qualifications_details &&
-                          therapist.qualifications_details
-                            .toLowerCase()
-                            .includes(therapistSearch.toLowerCase())) ||
-                        (therapist.specialization &&
-                          therapist.specialization
-                            .toLowerCase()
-                            .includes(therapistSearch.toLowerCase())) ||
-                        (therapist.mobile_number &&
-                          therapist.mobile_number.includes(therapistSearch)),
-                    )
-                    .map((therapist) => (
+                  therapistPagedItems.map((therapist) => (
                       <div
                         key={therapist.id}
                         onClick={() => handleTherapistClick(therapist.id)}
@@ -1148,6 +1219,15 @@ const HeadMaster = () => {
                     ))
                 )}
               </div>
+              {renderPaginationControls({
+                page: therapistPage,
+                totalPages: therapistTotalPages,
+                totalItems: filteredTherapists.length,
+                setPage: setTherapistPage,
+                itemLabel: "therapists",
+                className: "mt-8",
+                hidden: therapists.length === 0,
+              })}
             </>
           ) : null}
         </div>
