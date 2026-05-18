@@ -18,5 +18,5 @@ class Teacher(Base):
     rci_renewal_date = Column(Date, nullable=True)
     qualifications_details = Column(String, nullable=True)
     category = Column(String, nullable=True)
-    email = Column(String, nullable=False)
+    email = Column(String, nullable=True)
     class_assignments = Column(JSON, nullable=True)

@@ -17,10 +17,10 @@ class ClassAssignment(BaseModel):
 
 
 class TeacherBase(BaseModel):
-    # require name, aadhar_number and email for creation per updated UX
+    # require name and aadhar_number for creation per updated UX
     name: str
     aadhar_number: str
-    email: str
+    email: Optional[str] = None
     address: Optional[str] = None
     date_of_birth: Optional[date] = None
     gender: Optional[str] = None
