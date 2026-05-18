@@ -157,7 +157,7 @@ class StudentBase(BaseModel):
     sentences: bool = False
     physical_deformity: bool = False
     
-    photo: Optional[bytes] = None
+    photo: Optional[str] = None
 
     class Config:
         # Allow arbitrary types including bytes without validation
