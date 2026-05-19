@@ -41,6 +41,30 @@ const inputEditStyles = `
   }
 `;
 
+const GENDER_OPTIONS = ["Male", "Female", "Other"];
+const RELIGION_OPTIONS = [
+  { value: "hinduism", label: "Hinduism" },
+  { value: "christianity", label: "Christianity" },
+  { value: "islam", label: "Islam" },
+  { value: "sikhism", label: "Sikhism" },
+  { value: "buddhism", label: "Buddhism" },
+  { value: "jainism", label: "Jainism" },
+  { value: "Other", label: "Other" },
+];
+const BLOOD_GROUP_OPTIONS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+const CLASS_OPTIONS = [
+  "PrePrimary",
+  "Primary 1",
+  "Primary 2",
+  "Secondary",
+  "Pre vocational 1",
+  "Pre vocational 2",
+  "Care group below 18 years",
+  "Care group Above 18 years",
+  "Vocational 18-35 years",
+];
+const DIVISION_OPTIONS = ["A", "B", "C", "D"];
+
 // Add styles to document head
 if (typeof document !== "undefined") {
   const styleElement = document.createElement("style");
@@ -1926,6 +1950,14 @@ const addCellToColumn = (columnKey) => {
     }
 
     setEditData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditSelectChange = (fieldName) => (e) => {
+    handleEditChange(e);
+
+    if (fieldName === "class" && !e.target.value) {
+      setEditData((prev) => ({ ...prev, division: "" }));
+    }
   };
 
   // Cancel editing
@@ -6215,24 +6247,42 @@ const isPhaseUnlocked = (table, targetPhase) => {
                       { label: "Age", key: "age", type: "number" },
                       { label: "Student ID", key: "studentId", type: "text", readOnly: true },
                       { label: "Date of Birth", key: "dob", type: "date" },
-                      { label: "Gender", key: "gender", type: "text" },
-                      { label: "Religion", key: "religion", type: "text" },
+                      { label: "Gender", key: "gender", options: GENDER_OPTIONS },
+                      { label: "Religion", key: "religion", options: RELIGION_OPTIONS },
                       { label: "Caste", key: "caste", type: "text" },
                       { label: "Aadhar Number", key: "aadharNumber", type: "text" },
-                      ...(editMode ? [{ label: "Blood Group", key: "bloodGroup", type: "text" }] : []),
-                      ...(editMode ? [{ label: "Category", key: "category", type: "text" }] : []),
                     ].map((field) => (
                       <div key={field.key}>
                         <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
                         {editMode ? (
-                          <input
-                            type={field.type}
-                            name={field.key}
-                            value={editData?.[field.key] || ""}
-                            onChange={handleEditChange}
-                            readOnly={field.readOnly}
-                            className="input-edit"
-                          />
+                          field.options ? (
+                            <select
+                              name={field.key}
+                              value={editData?.[field.key] || ""}
+                              onChange={handleEditSelectChange(field.key)}
+                              className="input-edit"
+                            >
+                              <option value="">Select</option>
+                              {field.options.map((option) => {
+                                const optionValue = typeof option === "string" ? option : option.value;
+                                const optionLabel = typeof option === "string" ? option : option.label;
+                                return (
+                                  <option key={optionValue} value={optionValue}>
+                                    {optionLabel}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          ) : (
+                            <input
+                              type={field.type}
+                              name={field.key}
+                              value={editData?.[field.key] || ""}
+                              onChange={handleEditChange}
+                              readOnly={field.readOnly}
+                              className="input-edit"
+                            />
+                          )
                         ) : (
                           <p className="text-[#170F49] font-medium text-lg">
                             {student?.[field.key] || "N/A"}
@@ -6473,8 +6523,8 @@ const isPhaseUnlocked = (table, targetPhase) => {
           
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {[
-                    { label: "Class", key: "class" },
-                    { label: "Division", key: "division" },
+                    { label: "Class", key: "class", options: CLASS_OPTIONS },
+                    { label: "Division", key: "division", options: DIVISION_OPTIONS },
                     { label: "Roll Number", key: "rollNo" },
                     { label: "Academic Year", key: "academicYear" },
                     { label: "Admission Number", key: "admissionNumber" },
@@ -6483,22 +6533,40 @@ const isPhaseUnlocked = (table, targetPhase) => {
                     <div key={field.key}>
                       <p className="text-sm text-[#6F6C90] mb-2 font-semibold">{field.label}</p>
                       {editMode ? (
+                        field.options ? (
+                          <select
+                            name={field.key}
+                            value={editData?.[field.key] || ""}
+                            onChange={handleEditSelectChange(field.key)}
+                            className="input-edit"
+                          >
+                            <option value="">Select</option>
+                            {field.options.map((option) => {
+                              const optionValue = typeof option === "string" ? option : option.value;
+                              const optionLabel = typeof option === "string" ? option : option.label;
+                              return (
+                                <option key={optionValue} value={optionValue}>
+                                  {optionLabel}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        ) : (
+                          <input
+                            type={field.type || "text"}
+                            name={field.key}
+                            value={editData?.[field.key] || ""}
+                            onChange={handleEditChange}
+                            className="input-edit"
+                          />
+                        )
+                      ) : (
 
-    <input
-      type={field.type || "text"}
-      name={field.key}
-      value={editData?.[field.key] || ""}
-      onChange={handleEditChange}
-      className="input-edit"
-    />
+                        <p className="text-[#170F49] font-medium">
+                          {student?.[field.key] || "N/A"}
+                        </p>
 
-) : (
-
-  <p className="text-[#170F49] font-medium">
-    {student?.[field.key] || "N/A"}
-  </p>
-
-)}
+                      )}
                     </div>
                   ))}
                 </div>
@@ -8934,13 +9002,19 @@ const isPhaseUnlocked = (table, targetPhase) => {
                         <div className="md:col-span-2">
                           <p className="text-sm text-[#6F6C90]">Blood Group</p>
                           {editMode ? (
-                            <input
-                              type="text"
+                            <select
                               name="bloodGroup"
                               value={editData?.bloodGroup || ""}
-                              onChange={handleEditChange}
+                              onChange={handleEditSelectChange("bloodGroup")}
                               className="input-edit"
-                            />
+                            >
+                              <option value="">Select</option>
+                              {BLOOD_GROUP_OPTIONS.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
                           ) : (
                             <p className="text-[#170F49] font-medium">
                               {student?.bloodGroup || "N/A"}
@@ -8950,13 +9024,19 @@ const isPhaseUnlocked = (table, targetPhase) => {
                         <div className="md:col-span-2">
                           <p className="text-sm text-[#6F6C90]">Religion</p>
                           {editMode ? (
-                            <input
-                              type="text"
+                            <select
                               name="religion"
                               value={editData?.religion || ""}
-                              onChange={handleEditChange}
+                              onChange={handleEditSelectChange("religion")}
                               className="input-edit"
-                            />
+                            >
+                              <option value="">Select</option>
+                              {RELIGION_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
                           ) : (
                             <p className="text-[#170F49] font-medium">
                               {student?.religion || "N/A"}
